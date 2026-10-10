@@ -3,7 +3,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js';
 import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
-  runTransaction, increment,
+  runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
 import * as L from './logic.js';
 import { loadContent } from './content.js';
@@ -47,9 +47,103 @@ const nameOf = pid => state?.players?.[pid]?.name || '???';
 const isHost = () => state?.meta?.hostId === me.id;
 const fillNames = t => String(t || '').replace(/@([A-Za-z0-9_-]+)@/g, (_, id) => nameOf(id));
 
-function addLog(text) {
+function addLog(text, extra = {}) {
   if (!roomCode || !text) return;
-  push(R('log'), { t: now(), text: fillNames(text) }).catch(console.error);
+  push(R('log'), { t: now(), text: fillNames(text), ...extra }).catch(console.error);
+}
+
+// ---------------- Игровые диалоги и уведомления ----------------
+const $ov = document.createElement('div');
+$ov.id = 'overlay';
+document.body.appendChild($ov);
+const $toasts = document.createElement('div');
+$toasts.className = 'toasts';
+$ov.appendChild($toasts);
+
+function dialog({ title = '', text = '', html = '', ok = 'Да', cancel = 'Отмена', danger = false } = {}) {
+  return new Promise(resolve => {
+    const el = document.createElement('div');
+    el.className = 'dlg-bg';
+    el.innerHTML = `<div class="dlg" role="dialog" aria-modal="true">
+      ${title ? `<h3>${esc(title)}</h3>` : ''}${text ? `<p>${esc(text)}</p>` : ''}${html}
+      <div class="dlg-btns">
+        ${cancel ? `<button class="btn ghost" data-r="0">${esc(cancel)}</button>` : ''}
+        <button class="btn ${danger ? 'danger' : 'primary'}" data-r="1">${esc(ok)}</button>
+      </div></div>`;
+    const done = v => { el.classList.add('out'); setTimeout(() => el.remove(), 160); resolve(v); };
+    el.addEventListener('click', e => {
+      const b = e.target.closest('[data-r]');
+      if (b) done(b.dataset.r === '1');
+      else if (e.target === el) done(false);
+    });
+    $ov.appendChild(el);
+  });
+}
+const ask = (text, ok = 'Да', opts = {}) => dialog({ text, ok, ...opts });
+
+function toast(text, kind = '') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + kind;
+  el.textContent = text;
+  el.addEventListener('click', () => el.remove());
+  $toasts.prepend(el);
+  while ($toasts.children.length > 4) $toasts.lastChild.remove();
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 300); }, 3500);
+}
+
+// Анимированная карта: раскрытие характеристики или изгнание
+const popupQueue = [];
+let popupBusy = false;
+function showPopup(entry) { popupQueue.push(entry); if (!popupBusy) nextPopup(); }
+function nextPopup() {
+  const e = popupQueue.shift();
+  if (!e) { popupBusy = false; return; }
+  popupBusy = true;
+  const el = document.createElement('div');
+  el.className = 'popup-bg';
+  el.innerHTML = `<div class="popup ${e.cls || ''}">
+    ${e.top ? `<div class="popup-top">${esc(e.top)}</div>` : ''}
+    ${e.label ? `<div class="popup-label">${esc(e.label)}</div>` : ''}
+    ${e.value ? `<div class="popup-value">${esc(e.value)}</div>` : ''}
+    ${e.name ? `<div class="popup-name">${esc(e.name)}</div>` : ''}
+    ${e.sub ? `<div class="popup-sub">${esc(e.sub)}</div>` : ''}
+  </div>`;
+  let closed = false;
+  const close = () => {
+    if (closed) return; closed = true;
+    el.classList.add('out');
+    setTimeout(() => { el.remove(); nextPopup(); }, 250);
+  };
+  el.addEventListener('click', close);
+  $ov.appendChild(el);
+  setTimeout(close, e.long ? 6000 : popupQueue.length ? 2200 : 3200);
+}
+
+let seenLog = null;
+function processLog() {
+  const log = state?.log || {};
+  const keys = Object.keys(log).sort();
+  if (seenLog === null) { seenLog = new Set(keys); return; }
+  for (const k of keys) {
+    if (seenLog.has(k)) continue;
+    seenLog.add(k);
+    notifyEntry(log[k]);
+  }
+}
+function notifyEntry(e) {
+  if (!e) return;
+  if (e.type === 'reveal') showPopup({ top: `${e.who} раскрывает`, label: e.label, value: e.value });
+  else if (e.type === 'exile') showPopup({ cls: 'exile', top: 'Изгнан(а) из бункера', name: e.who });
+  else if (e.type === 'start') {
+    ui.tab = 'bunker';
+    render();
+    showPopup({ cls: 'cat', top: 'Катастрофа', value: e.title, sub: `${e.catText} Продержаться: ${e.duration}.`, long: true });
+    showPopup({ cls: 'info', top: 'Ваш бункер', value: `${e.size} м² · мест: ${e.slots}`, sub: e.feature ? `В бункере есть: ${e.feature}` : '', long: true });
+  } else if (e.type === 'bunker') {
+    showPopup({ cls: 'info', top: e.round ? `Раунд ${e.round}` : 'Бункер', label: 'Открыта особенность бункера', value: e.feature });
+  }
+  else if (e.type === 'vote' || e.type === 'presence') { if (e.actor !== me.id) toast(e.text, 'small'); }
+  else toast(e.text);
 }
 
 // ---------------- Комнаты ----------------
@@ -99,9 +193,12 @@ async function joinRoom() {
   enterRoom(code);
 }
 
-function enterRoom(code) {
+let rejoinPending = false;
+function enterRoom(code, { rejoin = false } = {}) {
   roomCode = code;
   ui.error = '';
+  seenLog = null;
+  rejoinPending = rejoin;
   localStorage.setItem(LS.room, code);
   if (location.hash !== '#' + code) history.replaceState(null, '', '#' + code);
   roomUnsub?.();
@@ -111,6 +208,11 @@ function enterRoom(code) {
     const p = state.players?.[me.id];
     if (!p || !p.name) return exitRoom('Вас удалили из лобби');
     if (state.meta?.status === 'playing' && !content) loadContent().then(c => { content = c; }).catch(console.error);
+    if (rejoinPending) {
+      rejoinPending = false;
+      if (state.meta?.status === 'playing') addLog(`@${me.id}@ вернулся(-ась) в игру`, { type: 'presence', actor: me.id });
+    }
+    processLog();
     render();
   });
   setupPresence();
@@ -119,17 +221,23 @@ function enterRoom(code) {
 function setupPresence() {
   presenceUnsub?.();
   const onlineRef = R(`players/${me.id}/online`);
+  let connectedBefore = false;
   presenceUnsub = onValue(ref(db, '.info/connected'), snap => {
-    if (snap.val() === true) {
-      onDisconnect(onlineRef).set(false).then(() => set(onlineRef, true)).catch(console.error);
-    }
+    if (snap.val() !== true) return;
+    onDisconnect(onlineRef).set(false).then(() => set(onlineRef, true)).catch(console.error);
+    // заранее готовим запись в журнал «отключился» — сервер запишет её сам при обрыве связи
+    const offRef = push(R('log'));
+    onDisconnect(offRef).set({ t: serverTimestamp(), text: `${me.name || 'Игрок'} отключился(-ась)`, type: 'presence', actor: me.id }).catch(console.error);
+    if (connectedBefore && state?.meta?.status === 'playing') addLog(`@${me.id}@ снова на связи`, { type: 'presence', actor: me.id });
+    connectedBefore = true;
   });
 }
 
 function exitRoom(msg) {
   roomUnsub?.(); presenceUnsub?.();
   roomUnsub = presenceUnsub = null;
-  if (roomCode) onDisconnect(R(`players/${me.id}/online`)).cancel().catch(() => {});
+  if (roomCode) onDisconnect(R('')).cancel().catch(() => {});
+  seenLog = null;
   roomCode = null; state = null; ui.modal = null; ui.tab = 'me';
   localStorage.removeItem(LS.room);
   history.replaceState(null, '', location.pathname + location.search);
@@ -149,6 +257,7 @@ async function leaveRoom() {
     }
     exitRoom();
   } else {
+    addLog(`@${me.id}@ вышел(-ла) из игры`, { type: 'presence', actor: me.id });
     await set(R(`players/${me.id}/online`), false);
     exitRoom();
   }
@@ -159,17 +268,20 @@ async function startGame() {
   content = await loadContent();
   const s = { ...L.DEFAULT_SETTINGS, ...state.settings };
   const ids = validPlayers().filter(([id]) => s.hostPlays || id !== state.meta.hostId).map(([id]) => id);
-  if (ids.length < 2) return alert('Нужно минимум 2 игрока');
-  if (ids.length < 4 && !confirm(`Игроков всего ${ids.length}. Обычно играют от 6. Начать всё равно?`)) return;
+  if (ids.length < 2) return toast('Нужно минимум 2 игрока', 'warn');
+  if (ids.length < 4 && !(await ask(`Игроков всего ${ids.length}. Обычно играют от 6. Начать всё равно?`, 'Начать'))) return;
   const { cards, game } = L.newGame(ids, content, s, now());
   const upd = { cards, game, 'meta/status': 'playing', log: null };
   validPlayers().forEach(([id]) => { upd[`players/${id}/spectator`] = null; });
   await update(R(''), upd);
-  addLog(game.event);
+  addLog(game.event, {
+    type: 'start', title: game.catastrophe.title, catText: game.catastrophe.text, duration: game.catastrophe.duration,
+    size: game.bunker.size, slots: game.slots, feature: game.bunker.features[0] || '',
+  });
 }
 
 async function backToLobby() {
-  if (!confirm('Вернуться в лобби? Текущая партия будет сброшена.')) return;
+  if (!(await ask('Вернуться в лобби? Текущая партия будет сброшена.', 'Сбросить', { danger: true }))) return;
   await update(R(''), { game: null, cards: null, log: null, 'meta/status': 'lobby' });
 }
 
@@ -178,6 +290,7 @@ async function doAdvance(expectedVersion) {
   if (advancing) return;
   advancing = true;
   try {
+    const before = clone(state?.game);
     const res = await runTransaction(R('game'), g => {
       if (!g) return g;
       if ((g.version || 0) !== expectedVersion) return; // кто-то уже продвинул
@@ -185,13 +298,20 @@ async function doAdvance(expectedVersion) {
     });
     if (res.committed) {
       const g = res.snapshot.val();
-      if (g?.event) addLog(g.event);
+      if (g?.event) {
+        const ex = g.phase === 'result' && g.lastResult?.exiled;
+        const newRound = g.phase === 'speech' && g.turn === 0 && g.round > 1 && g.event === `Раунд ${g.round}`;
+        const feat = newRound ? (g.bunker?.features || [])[(g.bunker?.shown || 0) - 1] : null;
+        if (ex) addLog(g.event, { type: 'exile', who: nameOf(ex) });
+        else if (feat && (g.bunker.shown || 0) > (before?.bunker?.shown || 0)) addLog(`Раунд ${g.round}. В бункере открыто: ${feat}`, { type: 'bunker', round: g.round, feature: feat });
+        else addLog(g.event, { type: 'game' });
+      }
     }
   } catch (e) { console.error(e); } finally { advancing = false; }
 }
 
 async function forceEnd() {
-  if (!confirm('Завершить игру сейчас?')) return;
+  if (!(await ask('Завершить игру сейчас?', 'Завершить', { danger: true }))) return;
   const res = await runTransaction(R('game'), g => (g ? L.endGame(g) : g));
   if (res.committed) addLog('Хост завершил игру');
 }
@@ -238,13 +358,17 @@ async function revealMine(key) {
     [`revealed/${me.id}/${key}`]: true,
     [`revealedRound/${me.id}`]: increment(1),
   });
-  addLog(`@${me.id}@ раскрыл(а) «${L.traitLabel(key)}»: ${state.cards[me.id].traits[key]}`);
+  const value = state.cards[me.id].traits[key];
+  addLog(`@${me.id}@ раскрыл(а) «${L.traitLabel(key)}»: ${value}`, { type: 'reveal', actor: me.id, who: me.name, label: L.traitLabel(key), value });
 }
 
 async function vote(target) {
   const g = L.norm(clone(state.game));
   if (g.phase !== 'vote' || !g.alive[me.id]) return;
+  if (g.votes[me.id] === target) return;
   await set(R(`game/votes/${me.id}`), target);
+  const what = target === 'abstain' ? 'воздерживается' : `голосует → @${target}@`;
+  addLog(g.settings.voteSecret ? `@${me.id}@ проголосовал(а)` : `@${me.id}@ ${what}`, { type: 'vote', actor: me.id });
 }
 
 const NEEDS_TARGET = ['reroll_target', 'swap', 'reveal_target', 'set_target', 'revive'];
@@ -255,6 +379,7 @@ function targetsFor(effect) {
   switch (effect.type) {
     case 'revive': return g.players.filter(p => !g.alive[p]);
     case 'set_target': return alive;
+    case 'reveal_target': return alive.filter(p => p !== me.id && (effect.key && effect.key !== 'random' ? L.hiddenKeys(g, p).includes(effect.key) : L.hiddenKeys(g, p).length > 0));
     default: return alive.filter(p => p !== me.id);
   }
 }
@@ -273,6 +398,7 @@ async function useAction(i, target) {
   const label = L.traitLabel(key);
   const upd = {};
   let msg = `@${me.id}@ применил(а) карту «${a.title}»`;
+  let revealExtra = null;
 
   const usedRaw = k => new Set(g.players.map(p => cards[p]?.raw?.[k]).filter(Boolean));
   const reroll = (pid, k) => {
@@ -307,9 +433,11 @@ async function useAction(i, target) {
       const hid = L.hiddenKeys(g, target);
       let k = e.key && e.key !== 'random' ? e.key : null;
       if (!k || !hid.includes(k)) k = hid.length ? L.pick(hid) : null;
-      if (!k) return alert('У этого игрока уже всё раскрыто');
+      if (!k) return toast('У этого игрока уже всё раскрыто', 'warn');
       upd[`game/revealed/${target}/${k}`] = true;
-      msg += `: у @${target}@ раскрыто «${L.traitLabel(k)}» — ${cards[target].traits[k]}`; break;
+      msg += `: у @${target}@ раскрыто «${L.traitLabel(k)}» — ${cards[target].traits[k]}`;
+      revealExtra = { type: 'reveal', actor: me.id, who: nameOf(target), label: L.traitLabel(k), value: cards[target].traits[k] };
+      break;
     }
     case 'set_target':
       upd[`cards/${target}/traits/${key}`] = e.value;
@@ -320,21 +448,24 @@ async function useAction(i, target) {
     case 'double_vote':
       upd[`game/effects/double/${me.id}`] = g.round; msg += ' — двойной голос в этом раунде'; break;
     case 'cancel_vote':
-      if (g.phase !== 'vote') return alert('Эту карту можно применить только во время голосования');
+      if (g.phase !== 'vote') return toast('Эту карту можно применить только во время голосования', 'warn');
       upd['game/effects/cancelVote'] = g.round; msg += ' — голосование будет сорвано'; break;
     case 'extra_slot':
       upd['game/slots'] = increment(1); msg += ' — в бункере +1 место'; break;
     case 'bunker_reveal':
-      if (g.bunker.shown >= g.bunker.features.length) return alert('Все особенности бункера уже открыты');
-      upd['game/bunker/shown'] = increment(1); msg += ' — открыта новая особенность бункера'; break;
+      if (g.bunker.shown >= g.bunker.features.length) return toast('Все особенности бункера уже открыты', 'warn');
+      upd['game/bunker/shown'] = increment(1);
+      msg += `: в бункере открыто — ${g.bunker.features[g.bunker.shown]}`;
+      revealExtra = { type: 'bunker', feature: g.bunker.features[g.bunker.shown], actor: me.id };
+      break;
     case 'revive':
       upd[`game/alive/${target}`] = true; msg += `: @${target}@ возвращается в игру`; break;
     default:
-      return alert('Неизвестная карта действия');
+      return toast('Неизвестная карта действия', 'warn');
   }
   upd[`cards/${me.id}/actions/${i}/used`] = true;
   await update(R(''), upd);
-  addLog(msg);
+  addLog(msg, revealExtra || { type: 'action', actor: me.id });
 }
 
 // ---------------- Админка ----------------
@@ -362,7 +493,8 @@ async function adminReveal(pid) {
   const key = document.getElementById('adm-key-' + pid)?.value;
   if (!key) return;
   await set(R(`game/revealed/${pid}/${key}`), true);
-  addLog(`Хост раскрыл у @${pid}@ «${L.traitLabel(key)}»: ${state.cards[pid].traits[key]}`);
+  const value = state.cards[pid].traits[key];
+  addLog(`Хост раскрыл у @${pid}@ «${L.traitLabel(key)}»: ${value}`, { type: 'reveal', actor: me.id, who: nameOf(pid), label: L.traitLabel(key), value });
 }
 async function adminReroll(pid) {
   const key = document.getElementById('adm-key-' + pid)?.value;
@@ -381,7 +513,7 @@ async function adminReroll(pid) {
   addLog(`Хост заменил у @${pid}@ характеристику «${L.traitLabel(key)}»`);
 }
 async function makeHost(pid) {
-  if (!confirm(`Передать права хоста игроку ${nameOf(pid)}?`)) return;
+  if (!(await ask(`Передать права хоста игроку ${nameOf(pid)}?`, 'Передать'))) return;
   await set(R('meta/hostId'), pid);
   ui.tab = 'me';
 }
@@ -389,6 +521,7 @@ async function makeHost(pid) {
 // ---------------- Настройки ----------------
 const FIELDS = [
   { k: 'hostPlays', t: 'check', l: 'Хост тоже играет' },
+  { k: 'firstSpeaker', t: 'player', l: 'Первым говорит' },
   { k: 'slots', t: 'num', l: 'Мест в бункере (0 — авто: половина)', min: 0, max: 30 },
   { k: 'ageMin', t: 'num', l: 'Возраст от', min: 1, max: 120 },
   { k: 'ageMax', t: 'num', l: 'Возраст до', min: 1, max: 120 },
@@ -456,19 +589,24 @@ function render() {
 function renderHome() {
   setHTML(`
   <div class="wrap home">
-    <h1 class="logo">БУНКЕР</h1>
+    <h1 class="logo">БункИИр</h1>
     <p class="muted">Кто достоин выжить после конца света?</p>
     ${ui.error ? `<div class="err">${esc(ui.error)}</div>` : ''}
     <label class="field">Ваше имя<input id="name" maxlength="20" autocomplete="nickname" value="${esc(me.name)}"></label>
-    <button class="btn primary" data-a="create">Создать лобби</button>
-    <div class="or">или войти по коду</div>
     <label class="field">Код лобби<input id="code" maxlength="4" autocapitalize="characters" autocomplete="off" value="${esc(ui.prefill)}" placeholder="ABCD"></label>
-    <button class="btn" data-a="join">Войти</button>
+    <button class="btn primary" data-a="join">Войти в лобби</button>
+    <div class="or">или</div>
+    <button class="btn ghost" data-a="create">Создать своё лобби</button>
   </div>`);
+}
+
+function lobbyPlayers(s) {
+  return validPlayers().filter(([id]) => s.hostPlays || id !== state.meta.hostId);
 }
 
 function settingValueText(f, v) {
   if (f.t === 'check') return v ? 'да' : 'нет';
+  if (f.t === 'player') return v && v !== 'random' && state.players?.[v]?.name ? nameOf(v) : 'случайно';
   if (f.t === 'select') return f.opts[v] || v;
   return v;
 }
@@ -497,7 +635,7 @@ function renderLobby() {
     </ul>
     <h2>Настройки</h2>
     <p class="muted small">Играют: ${playing}. Мест в бункере: ${s.slots > 0 ? Math.min(s.slots, Math.max(1, playing - 1)) : autoSlots}${s.slots > 0 ? '' : ' (авто)'}</p>
-    ${host ? `<div class="settings">${FIELDS.map(f => settingInput(f, s[f.k])).join('')}</div>`
+    ${host ? `<div class="settings">${FIELDS.map(f => settingInput(f, s[f.k], s)).join('')}</div>`
       : `<ul class="summary">${FIELDS.map(f => `<li><span>${f.l}</span><b>${esc(settingValueText(f, s[f.k]))}</b></li>`).join('')}</ul>`}
     <div class="actions-row">
       ${host ? '<button class="btn primary" data-a="start">Начать игру</button>' : '<p class="muted center">Ждём, пока хост начнёт игру…</p>'}
@@ -506,7 +644,15 @@ function renderLobby() {
   </div>`);
 }
 
-function settingInput(f, v) {
+function settingInput(f, v, s) {
+  if (f.t === 'player') {
+    const ps = lobbyPlayers(s);
+    const cur = ps.some(([id]) => id === v) ? v : 'random';
+    return `<label class="field">${f.l}<select data-set="${f.k}">
+      <option value="random" ${cur === 'random' ? 'selected' : ''}>Случайно</option>
+      ${ps.map(([id, p]) => `<option value="${id}" ${cur === id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}
+    </select></label>`;
+  }
   if (f.t === 'check') return `<label class="row-check"><input type="checkbox" data-set="${f.k}" ${v ? 'checked' : ''}><span>${f.l}</span></label>`;
   if (f.t === 'select') return `<label class="field">${f.l}<select data-set="${f.k}">${Object.entries(f.opts).map(([k, l]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`;
   return `<label class="field">${f.l}<input type="number" inputmode="numeric" data-set="${f.k}" min="${f.min}" max="${f.max}" value="${esc(v)}"></label>`;
@@ -583,6 +729,7 @@ function renderGame() {
   </div>
   <div class="wrap game">
     ${phaseBanner(g)}
+    ${miniFeed()}
     <nav class="tabs">${tabs.map(([k, l]) => `<button class="${ui.tab === k ? 'active' : ''}" data-a="tab" data-tab="${k}">${l}</button>`).join('')}</nav>
     <section>${body}</section>
   </div>
@@ -603,9 +750,50 @@ function tabMe(g, playing) {
       <div class="acts">${acts.map((a, i) => `
         <div class="act ${a.used ? 'used' : ''}">
           <div><b>${esc(a.title)}</b><div class="muted small">${esc(a.text)}</div></div>
-          ${a.used ? '<span class="tag">использована</span>' : alive ? `<button class="btn small" data-a="act" data-i="${i}">Применить</button>` : ''}
+          ${a.used ? '<span class="tag">использована</span>' : alive ? actionControl(a, i, g) : ''}
         </div>`).join('')}</div>` : ''}
     <button class="btn ghost" data-a="leave">Выйти (можно вернуться)</button>`;
+}
+
+// Почему карту нельзя применить прямо сейчас ('' — можно)
+function actionBlockReason(a, g) {
+  const e = a.effect || {};
+  if (g.phase === 'end') return 'Игра окончена';
+  switch (e.type) {
+    case 'cancel_vote':
+      if (g.phase !== 'vote') return 'Доступна во время голосования';
+      if (g.effects.cancelVote === g.round) return 'Голосование уже сорвано';
+      return '';
+    case 'double_vote':
+      if (g.effects.double[me.id] === g.round) return 'Уже действует в этом раунде';
+      if (g.phase === 'result' || !L.needsVote(g)) return 'В этом раунде нет голосования';
+      return '';
+    case 'immunity':
+      if (g.effects.immune[me.id] === g.round) return 'Уже действует в этом раунде';
+      if (g.phase === 'result' || !L.needsVote(g)) return 'В этом раунде нет голосования';
+      return '';
+    case 'bunker_reveal':
+      return g.bunker.shown >= g.bunker.features.length ? 'Все особенности бункера открыты' : '';
+    case 'revive':
+      return targetsFor(e).length ? '' : 'Изгнанных пока нет';
+    case 'reveal_target': {
+      const ok = targetsFor(e).some(p => {
+        const hid = L.hiddenKeys(g, p);
+        return e.key && e.key !== 'random' ? hid.includes(e.key) : hid.length > 0;
+      });
+      return ok ? '' : 'Раскрывать нечего';
+    }
+    default:
+      if (NEEDS_TARGET.includes(e.type) && !targetsFor(e).length) return 'Нет подходящих игроков';
+      return '';
+  }
+}
+
+function actionControl(a, i, g) {
+  const reason = actionBlockReason(a, g);
+  return reason
+    ? `<span class="act-wait">${esc(reason)}</span>`
+    : `<button class="btn small" data-a="act" data-i="${i}">Применить</button>`;
 }
 
 function tabPlayers(g) {
@@ -638,10 +826,16 @@ function tabBunker(g) {
     </div>`;
 }
 
+function miniFeed() {
+  const entries = Object.values(state.log || {}).sort((a, b) => b.t - a.t).slice(0, 3);
+  if (!entries.length) return '';
+  return `<button class="feed" data-a="tab" data-tab="log">${entries.map(e => `<div class="feed-row ${e.type === 'presence' || e.type === 'vote' ? 'muted' : ''}">${esc(e.text)}</div>`).join('')}</button>`;
+}
+
 function tabLog() {
   const entries = Object.values(state.log || {}).sort((a, b) => b.t - a.t).slice(0, 100);
   if (!entries.length) return '<p class="muted">Пока пусто.</p>';
-  return `<ul class="log">${entries.map(e => `<li><span class="muted small">${new Date(e.t).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span> ${esc(e.text)}</li>`).join('')}</ul>`;
+  return `<ul class="log">${entries.map(e => `<li class="${e.type ? 'lt-' + e.type : ''}"><span class="muted small">${new Date(e.t).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span> ${esc(e.text)}</li>`).join('')}</ul>`;
 }
 
 function tabAdmin(g) {
@@ -726,10 +920,10 @@ $app.addEventListener('click', async e => {
       case 'leave': await leaveRoom(); break;
       case 'copy': {
         const url = location.origin + location.pathname + '#' + roomCode;
-        try { await navigator.clipboard.writeText(url); b.textContent = 'Скопировано'; } catch { prompt('Ссылка на лобби:', url); }
+        try { await navigator.clipboard.writeText(url); toast('Ссылка скопирована'); } catch { dialog({ title: 'Ссылка на лобби', html: `<input class="copy-field" readonly value="${esc(url)}" onclick="this.select()">`, ok: 'Готово', cancel: '' }); }
         break;
       }
-      case 'kickLobby': if (confirm(`Убрать ${nameOf(pid)} из лобби?`)) await remove(R(`players/${pid}`)); break;
+      case 'kickLobby': if (await ask(`Убрать ${nameOf(pid)} из лобби?`, 'Убрать', { danger: true })) await remove(R(`players/${pid}`)); break;
       case 'start': await startGame(); break;
       case 'tab': ui.tab = b.dataset.tab; render(); break;
       case 'reveal': await revealMine(b.dataset.key); break;
@@ -742,8 +936,10 @@ $app.addEventListener('click', async e => {
       case 'act': {
         const i = +b.dataset.i;
         const act = state.cards[me.id].actions[i];
+        const why = actionBlockReason(act, L.norm(clone(state.game)));
+        if (why) { toast(why, 'warn'); break; }
         if (NEEDS_TARGET.includes(act.effect?.type)) { ui.modal = { i }; render(); }
-        else if (confirm(`Применить карту «${act.title}»?`)) await useAction(i);
+        else if (await ask(act.text, 'Применить', { title: act.title })) await useAction(i);
         break;
       }
       case 'target': { const i = ui.modal.i; ui.modal = null; render(); await useAction(i, pid); break; }
@@ -754,7 +950,7 @@ $app.addEventListener('click', async e => {
       case 'addTime': await adminAddTime(); break;
       case 'admReveal': await adminReveal(pid); break;
       case 'admReroll': await adminReroll(pid); break;
-      case 'admKill': if (confirm(`Изгнать ${nameOf(pid)}?`)) await adminSetAlive(pid, false); break;
+      case 'admKill': if (await ask(`Изгнать ${nameOf(pid)}?`, 'Изгнать', { danger: true })) await adminSetAlive(pid, false); break;
       case 'admRevive': await adminSetAlive(pid, true); break;
       case 'makeHost': await makeHost(pid); break;
       case 'endNow': await forceEnd(); break;
@@ -763,18 +959,18 @@ $app.addEventListener('click', async e => {
     }
   } catch (err) {
     console.error(err);
-    alert('Ошибка: ' + (err.message || err));
+    toast('Ошибка: ' + (err.message || err), 'warn');
   }
 });
 
 $app.addEventListener('change', e => {
   const el = e.target.closest('[data-set]');
-  if (el) changeSetting(el).catch(err => alert('Ошибка: ' + err.message));
+  if (el) changeSetting(el).catch(err => toast('Ошибка: ' + err.message, 'warn'));
 });
 
 $app.addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
-  if (e.target.id === 'code') joinRoom().catch(err => alert(err.message));
+  if (e.target.id === 'code') joinRoom().catch(err => toast(err.message, 'warn'));
   if (e.target.id === 'name') document.getElementById('code')?.focus();
 });
 
@@ -785,7 +981,7 @@ $app.addEventListener('keydown', e => {
     ui.prefill = code;
     try {
       const snap = await get(ref(db, `rooms/${code}/players/${me.id}`));
-      if (snap.exists() && snap.val()?.name) { enterRoom(code); return; }
+      if (snap.exists() && snap.val()?.name) { enterRoom(code, { rejoin: true }); return; }
     } catch (e) { console.error(e); ui.error = 'Не удалось подключиться к базе. Проверьте js/firebase-config.js'; }
   }
   render();

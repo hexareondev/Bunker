@@ -15,6 +15,7 @@ export const traitLabel = k => (TRAITS.find(t => t.key === k) || {}).label || k;
 
 export const DEFAULT_SETTINGS = {
   hostPlays: true,
+  firstSpeaker: 'random', // 'random' или id игрока, с которого начинается круг
   slots: 0,               // 0 — авто (половина игроков)
   ageMin: 18,
   ageMax: 80,
@@ -98,8 +99,12 @@ export function makeTrait(key, content, s, age, exclude = new Set()) {
 }
 
 // ---------- создание партии ----------
-export function newGame(playerIds, content, settings, now) {
+export function newGame(playerIdsIn, content, settings, now) {
   const s = { ...DEFAULT_SETTINGS, ...settings };
+  // порядок круга: начинаем с выбранного игрока (или со случайного)
+  let start = playerIdsIn.indexOf(s.firstSpeaker);
+  if (start < 0) start = randInt(0, playerIdsIn.length - 1);
+  const playerIds = playerIdsIn.slice(start).concat(playerIdsIn.slice(0, start));
   const n = playerIds.length;
   let slots = s.slots > 0 ? Math.min(+s.slots, n - 1) : defaultSlots(n);
   slots = Math.max(1, slots);
