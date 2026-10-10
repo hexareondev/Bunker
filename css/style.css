@@ -137,6 +137,57 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .story p { margin: 10px 0; }
 details summary { cursor: pointer; color: var(--muted); }
 
-.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; z-index: 20; }
-.modal { background: var(--bg); width: 100%; max-width: 520px; border-radius: 16px 16px 0 0; padding: 18px 16px 24px; display: flex; flex-direction: column; gap: 10px; max-height: 85vh; overflow-y: auto; }
-@media (min-width: 560px) { .modal-bg { align-items: center; } .modal { border-radius: 16px; } }
+.modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 20; animation: fadeIn .15s; }
+.modal { background: var(--surface); width: 100%; max-width: 420px; border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 10px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.35); animation: dlgIn .2s ease-out; }
+
+/* ---------- Журнал ---------- */
+.log li.lt-presence, .log li.lt-vote { color: var(--muted); }
+.log li.lt-reveal { border-left: 3px solid var(--accent); padding-left: 8px; }
+.log li.lt-exile { border-left: 3px solid var(--bad); padding-left: 8px; font-weight: 600; }
+.btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+
+/* ---------- Слои поверх игры ---------- */
+#overlay { position: relative; z-index: 50; }
+.toasts { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); width: min(92vw, 440px); display: flex; flex-direction: column; gap: 6px; pointer-events: none; z-index: 60; }
+.toast { pointer-events: auto; background: var(--text); color: var(--bg); border-radius: 12px; padding: 10px 14px; font-size: .9rem; box-shadow: 0 6px 24px rgba(0,0,0,.25); animation: toastIn .25s ease-out; }
+.toast.small { font-size: .8rem; padding: 7px 12px; opacity: .92; }
+.toast.warn { background: var(--bad); color: #fff; }
+.toast.out { opacity: 0; transform: translateY(-8px); transition: .3s; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+
+.dlg-bg { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 70; animation: fadeIn .15s; }
+.dlg { background: var(--surface); color: var(--text); width: 100%; max-width: 380px; border-radius: 16px; padding: 20px; box-shadow: 0 20px 60px rgba(0,0,0,.35); animation: dlgIn .2s ease-out; }
+.dlg h3 { margin: 0 0 6px; }
+.dlg p { margin: 0 0 14px; }
+.dlg-btns { display: flex; gap: 8px; }
+.dlg-btns .btn { flex: 1; }
+.dlg-bg.out { opacity: 0; transition: .15s; }
+.copy-field { margin-bottom: 14px; font-size: .85rem; }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes dlgIn { from { opacity: 0; transform: scale(.94); } }
+
+.popup-bg { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 65; perspective: 900px; pointer-events: none; }
+.popup { pointer-events: auto; cursor: pointer; width: 100%; max-width: 320px; background: var(--surface); border: 2px solid var(--accent); border-radius: 18px; padding: 22px 20px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,.4); animation: cardFlip .55s cubic-bezier(.2,.8,.3,1.2); transform-origin: center; }
+.popup.exile { border-color: var(--bad); }
+.popup-top { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.popup-label { margin-top: 14px; font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); font-weight: 700; }
+.popup-value { margin-top: 6px; font-size: 1.3rem; font-weight: 700; line-height: 1.25; }
+.popup-name { margin-top: 10px; font-size: 1.7rem; font-weight: 800; color: var(--bad); }
+.popup-bg.out { opacity: 0; transition: .25s; }
+.popup-bg.out .popup { transform: scale(.9) translateY(10px); transition: .25s; }
+@keyframes cardFlip {
+  0% { opacity: 0; transform: rotateY(90deg) scale(.8); }
+  60% { opacity: 1; transform: rotateY(-8deg) scale(1.03); }
+  100% { transform: rotateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) { .popup, .toast, .dlg { animation: none; } }
+
+.act-wait { font-size: .75rem; color: var(--muted); text-align: right; max-width: 45%; line-height: 1.3; }
+
+.popup.cat { border-color: var(--warn); max-width: 360px; }
+.popup.cat .popup-value { font-size: 1.5rem; }
+.popup.info { border-color: var(--ok); }
+.popup-sub { margin-top: 10px; font-size: .92rem; color: var(--muted); line-height: 1.4; }
+
+.tabs button { position: relative; }
+.badge { display: inline-block; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; border-radius: 999px; background: var(--accent); color: var(--accent-text); font-size: .7rem; line-height: 18px; text-align: center; vertical-align: 1px; }

@@ -714,6 +714,9 @@ function renderGame() {
   const tabs = [['me', 'Карта'], ['players', 'Игроки'], ['bunker', 'Бункер'], ['log', 'Журнал']];
   if (host) tabs.push(['admin', 'Хост']);
   if (!tabs.some(t => t[0] === ui.tab)) ui.tab = 'me';
+  const logEntries = Object.values(state.log || {});
+  if (ui.tab === 'log') ui.logSeenAt = Math.max(ui.logSeenAt || 0, ...logEntries.map(e => e.t || 0));
+  const unread = logEntries.filter(e => (e.t || 0) > (ui.logSeenAt || 0) && e.actor !== me.id).length;
 
   let body = '';
   if (ui.tab === 'me') body = tabMe(g, playing);
@@ -729,8 +732,7 @@ function renderGame() {
   </div>
   <div class="wrap game">
     ${phaseBanner(g)}
-    ${miniFeed()}
-    <nav class="tabs">${tabs.map(([k, l]) => `<button class="${ui.tab === k ? 'active' : ''}" data-a="tab" data-tab="${k}">${l}</button>`).join('')}</nav>
+    <nav class="tabs">${tabs.map(([k, l]) => `<button class="${ui.tab === k ? 'active' : ''}" data-a="tab" data-tab="${k}">${l}${k === 'log' && unread ? `<span class="badge">${unread > 99 ? '99+' : unread}</span>` : ''}</button>`).join('')}</nav>
     <section>${body}</section>
   </div>
   ${renderModal(g)}`);
@@ -824,12 +826,6 @@ function tabBunker(g) {
       <p>Площадь: <b>${g.bunker.size} м²</b> · Мест: <b>${g.slots}</b></p>
       <ul class="feats">${f.map((x, i) => `<li>${i < g.bunker.shown ? esc(x) : '<span class="muted">??? (откроется позже)</span>'}</li>`).join('')}</ul>
     </div>`;
-}
-
-function miniFeed() {
-  const entries = Object.values(state.log || {}).sort((a, b) => b.t - a.t).slice(0, 3);
-  if (!entries.length) return '';
-  return `<button class="feed" data-a="tab" data-tab="log">${entries.map(e => `<div class="feed-row ${e.type === 'presence' || e.type === 'vote' ? 'muted' : ''}">${esc(e.text)}</div>`).join('')}</button>`;
 }
 
 function tabLog() {
