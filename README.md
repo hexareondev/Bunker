@@ -25,7 +25,23 @@
 
 `apiKey` в веб-конфиге Firebase не секретный, его нормально хранить в публичном репозитории.
 
-### 2. GitHub Pages
+### 2. App Check (защита базы от чужих запросов)
+
+1. В Firebase Console откройте **Security → App Check → Apps**, выберите веб-приложение и провайдер **reCAPTCHA Enterprise**. Там будет ссылка на Google Cloud Console (раздел **Fraud Defense**).
+2. В Google Cloud Console (тот же проект, что и Firebase) откройте **Fraud Defense**, при необходимости включите API и создайте ключ:
+   - тип **Web**;
+   - домен `hexareondev.github.io` (`localhost` в этот ключ не добавляйте);
+   - галочку «Use checkbox challenge» **не** ставьте.
+3. Скопируйте ID ключа и вставьте его в Firebase (шаг 1) → Save.
+4. Тот же ключ впишите в `appCheckSiteKey` в `js/firebase-config.js` и закоммитьте.
+5. Поиграйте пару раз и проверьте в **App Check → APIs → Realtime Database**, что запросы помечены как verified.
+6. Нажмите **Enforce** для Realtime Database.
+
+Карта оплаты не нужна: на бесплатном плане Spark работает, просто доступно меньше уровней оценки риска.
+
+Для локальной проверки на `localhost` откройте консоль браузера: там появится отладочный токен App Check. Добавьте его в **App Check → Apps → ⋮ → Manage debug tokens**.
+
+### 3. GitHub Pages
 
 1. Создайте новый репозиторий и загрузите в него все файлы проекта (папки `content`, `css`, `js`, файлы `index.html`, `firebase-rules.json`, `README.md`).
 2. **Settings → Pages → Build and deployment → Source: Deploy from a branch**, ветка `main`, папка `/ (root)`.

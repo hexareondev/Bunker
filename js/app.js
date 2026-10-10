@@ -1,5 +1,6 @@
-import { firebaseConfig } from './firebase-config.js';
+import { firebaseConfig, appCheckSiteKey } from './firebase-config.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js';
 import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment,
@@ -9,6 +10,12 @@ import { loadContent } from './content.js';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
+// App Check: база принимает запросы только с этого сайта.
+// На localhost используется отладочный токен (его нужно один раз добавить в Firebase Console → App Check → Manage debug tokens).
+if (appCheckSiteKey) {
+  if (['localhost', '127.0.0.1'].includes(location.hostname)) self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  initializeAppCheck(fbApp, { provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey), isTokenAutoRefreshEnabled: true });
+}
 const db = getDatabase(fbApp);
 let serverOffset = 0;
 onValue(ref(db, '.info/serverTimeOffset'), s => { serverOffset = s.val() || 0; });
