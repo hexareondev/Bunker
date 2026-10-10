@@ -133,6 +133,7 @@ function processLog() {
 function notifyEntry(e) {
   if (!e) return;
   if (e.type === 'reveal') showPopup({ top: `${e.who} раскрывает`, label: e.label, value: e.value });
+  else if (e.type === 'action') showPopup({ cls: 'pop-act', top: `${e.who} применяет карту`, value: e.title, sub: e.sub });
   else if (e.type === 'exile') showPopup({ cls: 'exile', top: 'Изгнан(а) из бункера', name: e.who });
   else if (e.type === 'start') {
     ui.tab = 'bunker';
@@ -302,9 +303,21 @@ async function doAdvance(expectedVersion) {
         const ex = g.phase === 'result' && g.lastResult?.exiled;
         const newRound = g.phase === 'speech' && g.turn === 0 && g.round > 1 && g.event === `Раунд ${g.round}`;
         const feat = newRound ? (g.bunker?.features || [])[(g.bunker?.shown || 0) - 1] : null;
+        // авто-раскрытие по таймеру: карточка для каждой раскрытой характеристики
+        if (before?.phase === 'speech') {
+          const sp = (before.order || [])[before.turn || 0];
+          const was = (before.revealed || {})[sp] || {};
+          const now_ = (g.revealed || {})[sp] || {};
+          for (const k of L.TRAIT_KEYS) {
+            if (now_[k] && !was[k]) {
+              const value = state.cards?.[sp]?.traits?.[k] || '';
+              addLog(`@${sp}@ (время вышло) раскрыл(а) «${L.traitLabel(k)}»: ${value}`, { type: 'reveal', who: nameOf(sp), label: L.traitLabel(k), value, auto: true });
+            }
+          }
+        }
         if (ex) addLog(g.event, { type: 'exile', who: nameOf(ex) });
         else if (feat && (g.bunker.shown || 0) > (before?.bunker?.shown || 0)) addLog(`Раунд ${g.round}. В бункере открыто: ${feat}`, { type: 'bunker', round: g.round, feature: feat });
-        else addLog(g.event, { type: 'game' });
+        else if (!/время вышло/.test(g.event)) addLog(g.event, { type: 'game' });
       }
     }
   } catch (e) { console.error(e); } finally { advancing = false; }
@@ -465,7 +478,11 @@ async function useAction(i, target) {
   }
   upd[`cards/${me.id}/actions/${i}/used`] = true;
   await update(R(''), upd);
-  addLog(msg, revealExtra || { type: 'action', actor: me.id });
+  const prefix = `@${me.id}@ применил(а) карту «${a.title}»`;
+  let sub = fillNames(msg.slice(prefix.length)).replace(/^\s*(:|—|и)\s*/, '');
+  sub = sub ? sub[0].toUpperCase() + sub.slice(1) : '';
+  addLog(msg, { type: 'action', actor: me.id, who: me.name, title: a.title, sub,
+    ...(revealExtra && revealExtra.label ? { label: revealExtra.label, value: revealExtra.value } : {}) });
 }
 
 // ---------------- Админка ----------------

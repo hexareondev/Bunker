@@ -191,3 +191,21 @@ details summary { cursor: pointer; color: var(--muted); }
 
 .tabs button { position: relative; }
 .badge { display: inline-block; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; border-radius: 999px; background: var(--accent); color: var(--accent-text); font-size: .7rem; line-height: 18px; text-align: center; vertical-align: 1px; }
+.popup.pop-act { border-color: #7a5af8; }
+.popup.pop-act .popup-value { color: #7a5af8; }
+@media (prefers-color-scheme: dark) { .popup.pop-act { border-color: #a48bff; } .popup.pop-act .popup-value { color: #a48bff; } }
+
+/* ---------- Перенос длинного текста ---------- */
+.popup, .dlg, .modal, .toast, .banner, .card, .pcard, .act, .log li, .summary li, .plist li, .feats li { overflow-wrap: anywhere; word-break: normal; }
+.act > div, .trait .tv, .trait .tl, .phead b, .pname, .summary li span { min-width: 0; }
+.act > div { flex: 1 1 auto; }
+.act > .btn, .act > .tag, .act > .act-wait { flex: 0 0 auto; }
+.popup { box-sizing: border-box; overflow: hidden; }
+.popup-value, .popup-name, .popup-sub { hyphens: auto; }
+.timer { flex: none; }
+.topbar > div:first-child { min-width: 0; }
+@media (max-width: 400px) {
+  .tabs { gap: 3px; }
+  .tabs button { flex: 1 1 auto; padding: 7px 7px; font-size: .78rem; }
+  .badge { margin-left: 3px; min-width: 16px; height: 16px; line-height: 16px; font-size: .65rem; padding: 0 4px; }
+}
