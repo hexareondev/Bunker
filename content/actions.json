@@ -1,0 +1,238 @@
+[
+ {
+  "id": "new_prof",
+  "title": "Переквалификация",
+  "text": "Замените свою профессию на случайную новую.",
+  "effect": {
+   "type": "reroll_self",
+   "key": "profession"
+  },
+  "dark": false
+ },
+ {
+  "id": "new_bio",
+  "title": "Новая жизнь",
+  "text": "Замените свою биологию на случайную новую.",
+  "effect": {
+   "type": "reroll_self",
+   "key": "biology"
+  },
+  "dark": false
+ },
+ {
+  "id": "new_bag",
+  "title": "Не тот чемодан",
+  "text": "Замените свой багаж на случайный новый.",
+  "effect": {
+   "type": "reroll_self",
+   "key": "baggage"
+  },
+  "dark": false
+ },
+ {
+  "id": "new_any",
+  "title": "Перерождение",
+  "text": "Замените свою случайную характеристику на новую.",
+  "effect": {
+   "type": "reroll_self",
+   "key": "random"
+  },
+  "dark": false
+ },
+ {
+  "id": "heal",
+  "title": "Чудесное исцеление",
+  "text": "Выбранный игрок (можно себя) становится полностью здоров.",
+  "effect": {
+   "type": "set_target",
+   "key": "health",
+   "value": "Полностью здоров (исцелён)"
+  },
+  "dark": false
+ },
+ {
+  "id": "swap_bag",
+  "title": "Обмен багажом",
+  "text": "Поменяйтесь багажом с выбранным игроком.",
+  "effect": {
+   "type": "swap",
+   "key": "baggage"
+  },
+  "dark": false
+ },
+ {
+  "id": "swap_health",
+  "title": "Обмен здоровьем",
+  "text": "Поменяйтесь здоровьем с выбранным игроком.",
+  "effect": {
+   "type": "swap",
+   "key": "health"
+  },
+  "dark": false
+ },
+ {
+  "id": "swap_prof",
+  "title": "Обмен профессиями",
+  "text": "Поменяйтесь профессией с выбранным игроком.",
+  "effect": {
+   "type": "swap",
+   "key": "profession"
+  },
+  "dark": false
+ },
+ {
+  "id": "swap_phobia",
+  "title": "Поделиться страхом",
+  "text": "Поменяйтесь фобией с выбранным игроком.",
+  "effect": {
+   "type": "swap",
+   "key": "phobia"
+  },
+  "dark": false
+ },
+ {
+  "id": "shuffle_hobby",
+  "title": "Перетасовка хобби",
+  "text": "Хобби всех оставшихся игроков перемешиваются.",
+  "effect": {
+   "type": "shuffle_all",
+   "key": "hobby"
+  },
+  "dark": false
+ },
+ {
+  "id": "shuffle_bag",
+  "title": "Общий склад",
+  "text": "Багаж всех оставшихся игроков перемешивается.",
+  "effect": {
+   "type": "shuffle_all",
+   "key": "baggage"
+  },
+  "dark": false
+ },
+ {
+  "id": "amnesia",
+  "title": "Всеобщая амнезия",
+  "text": "Всем оставшимся игрокам выдаются новые факты.",
+  "effect": {
+   "type": "reroll_all",
+   "key": "fact"
+  },
+  "dark": false
+ },
+ {
+  "id": "reroll_char",
+  "title": "Перевоспитание",
+  "text": "Выбранному игроку выдаётся новый характер.",
+  "effect": {
+   "type": "reroll_target",
+   "key": "character"
+  },
+  "dark": false
+ },
+ {
+  "id": "expose",
+  "title": "Разоблачение",
+  "text": "Раскройте случайную скрытую характеристику выбранного игрока.",
+  "effect": {
+   "type": "reveal_target",
+   "key": "random"
+  },
+  "dark": false
+ },
+ {
+  "id": "interrogate",
+  "title": "Медосмотр",
+  "text": "Раскройте здоровье выбранного игрока (если ещё скрыто).",
+  "effect": {
+   "type": "reveal_target",
+   "key": "health"
+  },
+  "dark": false
+ },
+ {
+  "id": "immunity",
+  "title": "Иммунитет",
+  "text": "В этом раунде голоса против вас не засчитываются.",
+  "effect": {
+   "type": "immunity"
+  },
+  "dark": false
+ },
+ {
+  "id": "double",
+  "title": "Двойной голос",
+  "text": "В этом раунде ваш голос считается за два.",
+  "effect": {
+   "type": "double_vote"
+  },
+  "dark": false
+ },
+ {
+  "id": "cancel",
+  "title": "Саботаж",
+  "text": "Отмените текущее голосование (только во время голосования).",
+  "effect": {
+   "type": "cancel_vote"
+  },
+  "dark": false
+ },
+ {
+  "id": "slot",
+  "title": "Тайник",
+  "text": "В бункере нашлось ещё одно место: +1 место.",
+  "effect": {
+   "type": "extra_slot"
+  },
+  "dark": false
+ },
+ {
+  "id": "scout",
+  "title": "Разведка",
+  "text": "Откройте ещё одну особенность бункера.",
+  "effect": {
+   "type": "bunker_reveal"
+  },
+  "dark": false
+ },
+ {
+  "id": "revive",
+  "title": "Второй шанс",
+  "text": "Верните в игру одного изгнанного игрока.",
+  "effect": {
+   "type": "revive"
+  },
+  "dark": false
+ },
+ {
+  "id": "infect",
+  "title": "Чих в лицо",
+  "text": "Выбранный игрок заражён неизвестным вирусом.",
+  "effect": {
+   "type": "set_target",
+   "key": "health",
+   "value": "Заражён неизвестным вирусом (заразно)"
+  },
+  "dark": true
+ },
+ {
+  "id": "curse",
+  "title": "Проклятие цыганки",
+  "text": "Выбранному игроку выдаётся новая фобия.",
+  "effect": {
+   "type": "reroll_target",
+   "key": "phobia"
+  },
+  "dark": true
+ },
+ {
+  "id": "rob",
+  "title": "Ночной грабёж",
+  "text": "Заберите багаж выбранного игрока, отдав ему свой.",
+  "effect": {
+   "type": "swap",
+   "key": "baggage"
+  },
+  "dark": true
+ }
+]
