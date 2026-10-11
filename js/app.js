@@ -3,12 +3,12 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js';
 import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
-  runTransaction, increment, serverTimestamp,
+  runTransaction, increment, serverTimestamp, goOnline, goOffline,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=2.4';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=2.4';
-import * as E from './effects.js?v=2.4';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=2.4';
+import * as L from './logic.js?v=2.5';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=2.5';
+import * as E from './effects.js?v=2.5';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=2.5';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -19,6 +19,12 @@ if (appCheckSiteKey) {
   initializeAppCheck(fbApp, { provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey), isTokenAutoRefreshEnabled: true });
 }
 const db = getDatabase(fbApp);
+// Подключение к базе держим только пока игрок в комнате: главное меню слотов
+// (100 одновременных подключений на бесплатном тарифе) не занимает.
+goOffline(db);
+let dbOnline = false;
+function dbOn() { if (!dbOnline) { goOnline(db); dbOnline = true; } }
+function dbOff() { if (dbOnline && !roomCode) { goOffline(db); dbOnline = false; } }
 let serverOffset = 0;
 onValue(ref(db, '.info/serverTimeOffset'), s => { serverOffset = s.val() || 0; });
 const now = () => Date.now() + serverOffset;
@@ -257,6 +263,10 @@ function readName() {
 
 async function createRoom() {
   const name = readName(); if (!name) return;
+  dbOn();
+  try { await createRoomInner(name); } catch (e) { dbOff(); throw e; }
+}
+async function createRoomInner(name) {
   let code = null;
   for (let i = 0; i < 10 && !code; i++) {
     const c = genCode();
@@ -276,6 +286,10 @@ async function joinRoom() {
   const name = readName(); if (!name) return;
   const code = (document.getElementById('code')?.value || '').trim().toUpperCase();
   if (code.length !== 4) { ui.error = 'Код лобби — 4 символа'; render(); return; }
+  dbOn();
+  try { await joinRoomInner(name, code); } catch (e) { dbOff(); throw e; } finally { if (!roomCode) dbOff(); }
+}
+async function joinRoomInner(name, code) {
   const snap = await get(ref(db, 'rooms/' + code));
   if (!snap.exists()) { ui.error = 'Лобби не найдено'; render(); return; }
   const r = snap.val();
@@ -291,6 +305,7 @@ async function joinRoom() {
 
 let rejoinPending = false;
 function enterRoom(code, { rejoin = false } = {}) {
+  dbOn();
   roomCode = code;
   ui.error = '';
   seenLog = null;
@@ -332,7 +347,10 @@ function setupPresence() {
 function exitRoom(msg) {
   roomUnsub?.(); presenceUnsub?.();
   roomUnsub = presenceUnsub = null;
-  if (roomCode) onDisconnect(R('')).cancel().catch(() => {});
+  // отменяем отложенные «отключился»/online=false и только потом рвём связь
+  const cancel = roomCode ? onDisconnect(R('')).cancel().catch(() => {}) : Promise.resolve();
+  // небольшая пауза — чтобы успели уйти последние записи (выход из лобби, удаление комнаты)
+  cancel.then(() => setTimeout(dbOff, 2500));
   seenLog = null;
   roomCode = null; state = null; ui.modal = null; ui.tab = 'me';
   content = null; contentKey = null;
@@ -1456,10 +1474,12 @@ $app.addEventListener('keydown', e => {
   const code = (location.hash.slice(1) || localStorage.getItem(LS.room) || '').toUpperCase();
   if (code) {
     ui.prefill = code;
+    dbOn();
     try {
       const snap = await get(ref(db, `rooms/${code}/players/${me.id}`));
       if (snap.exists() && snap.val()?.name) { enterRoom(code, { rejoin: true }); return; }
     } catch (e) { console.error(e); ui.error = 'Не удалось подключиться к базе. Проверьте js/firebase-config.js'; }
+    dbOff();
   }
   render();
 })();
