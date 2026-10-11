@@ -17,7 +17,8 @@
  },
  {
   "text": "Ветеринар",
-  "dark": false
+  "dark": false,
+  "food": 1
  },
  {
   "text": "Фармацевт",
@@ -49,19 +50,23 @@
  },
  {
   "text": "Агроном",
-  "dark": false
+  "dark": false,
+  "food": 1
  },
  {
   "text": "Фермер",
-  "dark": false
+  "dark": false,
+  "food": 1
  },
  {
   "text": "Повар",
-  "dark": false
+  "dark": false,
+  "food": 1
  },
  {
   "text": "Пекарь",
-  "dark": false
+  "dark": false,
+  "food": 1
  },
  {
   "text": "Учитель начальных классов",
@@ -73,7 +78,8 @@
  },
  {
   "text": "Биолог",
-  "dark": false
+  "dark": false,
+  "food": 1
  },
  {
   "text": "Физик-ядерщик",
@@ -117,11 +123,13 @@
  },
  {
   "text": "Охотник",
-  "dark": false
+  "dark": false,
+  "food": 1
  },
  {
   "text": "Рыбак",
-  "dark": false
+  "dark": false,
+  "food": 1
  },
  {
   "text": "Геолог",

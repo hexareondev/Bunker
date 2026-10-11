@@ -5,8 +5,8 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js';
-import { loadContent } from './content.js';
+import * as L from './logic.js?v=1.8';
+import { loadContent } from './content.js?v=1.8';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -57,14 +57,23 @@ const TMETA = {
 };
 // Описания из content/*.json (поле desc)
 let descMaps = null;
-function descIn(file, text) {
-  if (!content || !text) return '';
+function itemIn(file, text) {
+  if (!content || !text || !file) return null;
   descMaps = descMaps || {};
   if (!descMaps[file]) {
     descMaps[file] = {};
-    for (const x of content[file] || []) if (x && x.desc) descMaps[file][x.text] = x.desc;
+    for (const x of content[file] || []) if (x && x.text) descMaps[file][x.text] = x;
   }
-  return descMaps[file][text] || '';
+  return descMaps[file][text] || null;
+}
+function descIn(file, text) { return (itemIn(file, text) || {}).desc || ''; }
+const traitFile = key => (L.TRAITS.find(t => t.key === key) || {}).file;
+const traitFood = (pid, key) => +((itemIn(traitFile(key), state?.cards?.[pid]?.raw?.[key]) || {}).food || 0);
+const featureFood = f => +((itemIn('bunkers', f) || {}).food || 0);
+function foodScore(pid) { return L.TRAIT_KEYS.reduce((sum, k) => sum + Math.max(0, traitFood(pid, k)), 0); }
+function foodTag(v, hot) {
+  if (!v) return '';
+  return `<span class="food-tag ${v > 0 ? 'plus' : 'minus'} ${hot ? 'hot' : ''}" title="${v > 0 ? 'Помогает с едой' : 'Нужно больше еды или особое питание'}">🍖 ${v > 0 ? 'еда' : '−еда'}</span>`;
 }
 const traitDesc = (key, raw) => descIn((L.TRAITS.find(t => t.key === key) || {}).file, raw);
 const cardDesc = (pid, key) => traitDesc(key, state?.cards?.[pid]?.raw?.[key]);
@@ -86,11 +95,11 @@ const $toasts = document.createElement('div');
 $toasts.className = 'toasts';
 $ov.appendChild($toasts);
 
-function dialog({ title = '', text = '', html = '', ok = 'Да', cancel = 'Отмена', danger = false } = {}) {
+function dialog({ title = '', text = '', html = '', ok = 'Да', cancel = 'Отмена', danger = false, cls = '' } = {}) {
   return new Promise(resolve => {
     const el = document.createElement('div');
     el.className = 'dlg-bg';
-    el.innerHTML = `<div class="dlg" role="dialog" aria-modal="true">
+    el.innerHTML = `<div class="dlg ${cls}" role="dialog" aria-modal="true">
       ${title ? `<h3>${esc(title)}</h3>` : ''}${text ? `<p>${esc(text)}</p>` : ''}${html}
       <div class="dlg-btns">
         ${cancel ? `<button class="btn ghost" data-r="0">${esc(cancel)}</button>` : ''}
@@ -163,16 +172,22 @@ function notifyEntry(e) {
     const m = TMETA[e.key] || {};
     showPopup({ cls: e.key ? 'pop-trait' : '', color: m.color, icon: m.icon, top: `${e.who} раскрывает`, label: e.label, value: e.value, sub: e.desc });
   }
-  else if (e.type === 'action') showPopup({ cls: 'pop-act', top: `${e.who} применяет карту`, value: e.title, sub: e.sub });
+  else if (e.type === 'action') showPopup({ cls: 'pop-act', top: `${e.who} применяет карту`, icon: e.icon || '🃏', value: e.title, sub: e.sub });
   else if (e.type === 'exile') showPopup({ cls: 'exile', top: 'Изгнан(а) из бункера', name: e.who });
   else if (e.type === 'start') {
     ui.tab = 'bunker';
     render();
     showPopup({ cls: 'cat', top: 'Катастрофа', value: e.title, sub: `${e.catText} Продержаться: ${e.duration}.`, long: true });
     const fd = featureDesc(e.feature);
-    showPopup({ cls: 'info', top: 'Ваш бункер', value: `${e.size} м² · мест: ${e.slots}`, sub: e.feature ? `В бункере есть: ${e.feature}${fd ? '. ' + fd : ''}` : '', long: true });
+    const parts = [];
+    if (e.condition) parts.push(`Состояние: ${e.condition}.`);
+    if (e.food) parts.push(`Еды на ${L.monthsText(e.food)}${e.need ? (e.food >= e.need ? ' — хватит.' : ` — не хватит, нужно ${L.monthsText(e.need)}.`) : '.'}`);
+    if (e.feature) parts.push(`В бункере есть: ${e.feature}${fd ? '. ' + fd : ''}`);
+    showPopup({ cls: 'info', top: 'Ваш бункер', value: `${e.size} м² · мест: ${e.slots}`, sub: parts.join(' '), long: true });
   } else if (e.type === 'bunker') {
-    showPopup({ cls: 'info', top: e.round ? `Раунд ${e.round}` : 'Бункер', label: 'Открыта особенность бункера', value: e.feature, sub: featureDesc(e.feature) });
+    const fm = +((itemIn('bunkers', e.feature) || {}).foodMonths || 0);
+    const sub = [featureDesc(e.feature), fm ? `🍖 Еда: ${fm > 0 ? '+' : '−'}${L.monthsText(Math.abs(fm))}` : ''].filter(Boolean).join(' ');
+    showPopup({ cls: 'info', top: e.round ? `Раунд ${e.round}` : 'Бункер', label: 'Открыта особенность бункера', value: e.feature, sub });
   }
   else if (e.type === 'vote' || e.type === 'presence') { if (e.actor !== me.id) toast(e.text, 'small'); }
   else toast(e.text);
@@ -309,6 +324,7 @@ async function startGame() {
   addLog(game.event, {
     type: 'start', title: game.catastrophe.title, catText: game.catastrophe.text, duration: game.catastrophe.duration,
     size: game.bunker.size, slots: game.slots, feature: game.bunker.features[0] || '',
+    condition: game.bunker.condition?.text || '', food: L.foodInfo(game).months, need: game.catastrophe.months || 0,
   });
 }
 
@@ -512,7 +528,7 @@ async function useAction(i, target) {
   const prefix = `@${me.id}@ применил(а) карту «${a.title}»`;
   let sub = fillNames(msg.slice(prefix.length)).replace(/^\s*(:|—|и)\s*/, '');
   sub = sub ? sub[0].toUpperCase() + sub.slice(1) : '';
-  addLog(msg, { type: 'action', actor: me.id, who: me.name, title: a.title, sub,
+  addLog(msg, { type: 'action', actor: me.id, who: me.name, title: a.title, sub, icon: actIcon(a),
     ...(revealExtra && revealExtra.label ? { label: revealExtra.label, value: revealExtra.value } : {}) });
 }
 
@@ -764,12 +780,13 @@ function traitRows(pid, g, { mine = false } = {}) {
     if (!mine && !open) return '';
     const m = TMETA[t.key] || {};
     const desc = cardDesc(pid, t.key);
+    const ft = foodTag(traitFood(pid, t.key), L.foodInfo(g).status === 'short');
     const btn = mine && !open && L.canReveal(g, pid, t.key) ? `<button class="btn small tc-btn" data-a="reveal" data-key="${t.key}">Раскрыть</button>` : '';
     const chip = mine ? (open ? '<span class="tc-chip on" title="Открыто всем">👁</span>' : '<span class="tc-chip" title="Видите только вы">🔒</span>') : '';
     return `<div class="tcard ${open ? 'open' : 'closed'}" style="--tc:${m.color}">
       <span class="tc-ico">${m.icon}</span>
       <div class="tc-body">
-        <div class="tc-label">${t.label}</div>
+        <div class="tc-label">${t.label}${ft}</div>
         <div class="tc-val">${esc(card.traits[t.key])}</div>
         ${desc ? `<div class="tc-desc">${esc(desc)}</div>` : ''}
       </div>
@@ -800,7 +817,7 @@ function renderGame() {
 
   setHTML(`
   <div class="topbar">
-    <div><b>Раунд ${g.round}</b> · ${L.PHASE_NAMES[g.phase] || g.phase}<div class="muted small">Мест: ${g.slots} · в игре: ${L.aliveIds(g).length} · код ${esc(roomCode)}</div></div>
+    <div><b>Раунд ${g.round}</b> · ${L.PHASE_NAMES[g.phase] || g.phase}<div class="muted small">Мест: ${g.slots} · в игре: ${L.aliveIds(g).length}${L.foodInfo(g).has ? ` · 🍖 ${L.monthsText(L.foodInfo(g).months, true)}` : ''} · код ${esc(roomCode)}</div></div>
     <div id="timer" class="timer"></div>
   </div>
   <div class="wrap game">
@@ -824,8 +841,9 @@ function tabMe(g, playing) {
     ${acts.length ? `<h3>Карты действий</h3>
       <div class="acts">${acts.map((a, i) => `
         <div class="act ${a.used ? 'used' : ''}">
-          <div><b>${esc(a.title)}</b><div class="muted small">${esc(a.text)}</div></div>
-          ${a.used ? '<span class="tag">использована</span>' : alive ? actionControl(a, i, g) : ''}
+          <span class="act-ico">${actIcon(a)}</span>
+          <div class="act-body"><div class="act-kind">Карта действия</div><b>${esc(a.title)}</b><div class="act-text">${esc(a.text)}</div></div>
+          <div class="act-side">${a.used ? '<span class="tag">использована</span>' : alive ? actionControl(a, i, g) : ''}</div>
         </div>`).join('')}</div>` : ''}
     <button class="btn ghost" data-a="leave">Выйти (можно вернуться)</button>`;
 }
@@ -864,6 +882,15 @@ function actionBlockReason(a, g) {
   }
 }
 
+function actIcon(a) {
+  if (a.icon) return a.icon;
+  const found = (content?.actions || []).find(x => x.id === a.id);
+  return (found && found.icon) || '🃏';
+}
+function actionCardHtml(a) {
+  return `<div class="act-hero"><div class="act-hero-ico">${actIcon(a)}</div><div class="act-kind">Карта действия</div><div class="act-hero-title">${esc(a.title)}</div><div class="act-text">${esc(a.text)}</div></div>`;
+}
+
 function actionControl(a, i, g) {
   const reason = actionBlockReason(a, g);
   return reason
@@ -892,7 +919,19 @@ function tabPlayers(g) {
 
 function featureItem(f) {
   const d = featureDesc(f);
-  return `<span class="feat-name">${esc(f)}</span>${d ? `<span class="feat-desc">${esc(d)}</span>` : ''}`;
+  return `<span class="feat-name">${esc(f)}${foodTag(featureFood(f))}</span>${d ? `<span class="feat-desc">${esc(d)}</span>` : ''}`;
+}
+function foodLine(g) {
+  const fi = L.foodInfo(g);
+  if (!fi.has) return '';
+  return ` · Еда: <b>на ${L.monthsText(fi.months)}</b>`;
+}
+function foodNote(g) {
+  const fi = L.foodInfo(g);
+  if (!fi.has) return '';
+  if (fi.status === 'ok') return `<div class="food-note ok">🍖 Еды хватит на весь срок (${L.monthsText(fi.need)}).</div>`;
+  if (fi.status === 'unknown') return `<div class="food-note">🍖 Сколько сидеть в бункере — неизвестно. Умения добывать еду пригодятся.</div>`;
+  return `<div class="food-note short">🍖 Еды не хватит: нужно ${L.monthsText(fi.need)}, есть на ${L.monthsText(fi.months)}. Особенно ценны те, кто умеет добывать пищу — их характеристики помечены 🍖.</div>`;
 }
 
 function tabBunker(g) {
@@ -901,7 +940,9 @@ function tabBunker(g) {
   return `
     <div class="card"><div class="tl">Катастрофа</div><h3>${esc(c.title)}</h3><p>${esc(c.text)}</p><p class="muted">Нужно продержаться: <b>${esc(c.duration)}</b></p></div>
     <div class="card"><div class="tl">Бункер</div>
-      <p>Площадь: <b>${g.bunker.size} м²</b> · Мест: <b>${g.slots}</b></p>
+      <p>Площадь: <b>${g.bunker.size} м²</b> · Мест: <b>${g.slots}</b>${foodLine(g)}</p>
+      ${g.bunker.condition ? `<div class="cond"><span class="cond-label">Состояние</span><b>${esc(g.bunker.condition.text)}</b>${g.bunker.condition.desc ? `<span class="feat-desc">${esc(g.bunker.condition.desc)}</span>` : ''}</div>` : ''}
+      ${foodNote(g)}
       <ul class="feats">${f.map((x, i) => `<li>${i < g.bunker.shown ? featureItem(x) : '<span class="muted">??? (откроется позже)</span>'}</li>`).join('')}</ul>
     </div>`;
 }
@@ -946,9 +987,9 @@ function renderModal(g) {
   const a = state.cards?.[me.id]?.actions?.[ui.modal.i];
   if (!a) { ui.modal = null; return ''; }
   const targets = targetsFor(a.effect);
-  return `<div class="modal-bg" data-a="closeModal"><div class="modal" data-stop="1">
-    <h3>${esc(a.title)}</h3><p class="muted">${esc(a.text)}</p>
-    <p>Выберите игрока:</p>
+  return `<div class="modal-bg" data-a="closeModal"><div class="modal act-dlg" data-stop="1">
+    ${actionCardHtml(a)}
+    <p class="pick-label">Выберите игрока:</p>
     <div class="vote-grid">${targets.length ? targets.map(p => `<button class="btn small" data-a="target" data-pid="${p}">${esc(nameOf(p))}${p === me.id ? ' (вы)' : ''}</button>`).join('') : '<span class="muted">Подходящих игроков нет</span>'}</div>
     <button class="btn ghost" data-a="closeModal">Отмена</button>
   </div></div>`;
@@ -962,7 +1003,7 @@ function renderEnd() {
   if (!state.game.story && amAdvancer() && storyRequested !== storyKey) {
     // историю генерирует один клиент (хост или первый онлайн), чтобы у всех она была одинаковой
     storyRequested = storyKey;
-    set(R('game/story'), L.makeStory(g, cards, names)).catch(console.error);
+    set(R('game/story'), L.makeStory(g, cards, names, Object.fromEntries(g.players.map(p => [p, foodScore(p)])))).catch(console.error);
   }
   const story = state.game.story || ['Пишем историю выживания…'];
   const block = list => list.map(p => `<div class="pcard ${g.alive[p] ? '' : 'dead'}"><div class="phead"><b>${esc(nameOf(p))}</b></div>${traitRows(p, g)}</div>`).join('');
@@ -1013,7 +1054,7 @@ $app.addEventListener('click', async e => {
         const why = actionBlockReason(act, L.norm(clone(state.game)));
         if (why) { toast(why, 'warn'); break; }
         if (NEEDS_TARGET.includes(act.effect?.type)) { ui.modal = { i }; render(); }
-        else if (await ask(act.text, 'Применить', { title: act.title })) await useAction(i);
+        else if (await dialog({ html: actionCardHtml(act), ok: 'Применить', cls: 'act-dlg' })) await useAction(i);
         break;
       }
       case 'target': { const i = ui.modal.i; ui.modal = null; render(); await useAction(i, pid); break; }

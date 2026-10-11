@@ -128,14 +128,17 @@ export function newGame(playerIdsIn, content, settings, now) {
     if (s.actionCards && actDeck.length) {
       for (let k = 0; k < (+s.actionsPerPlayer || 0); k++) {
         const a = actDeck[ai++ % actDeck.length];
-        actions.push(JSON.parse(JSON.stringify({ id: a.id, title: a.title, text: a.text, effect: a.effect, used: false })));
+        actions.push(JSON.parse(JSON.stringify({ id: a.id, title: a.title, text: a.text, icon: a.icon || '', effect: a.effect, used: false })));
       }
     }
     cards[pid] = { age, traits, raw, actions };
   });
 
   const cat = pick(pool(content, 'catastrophes', s));
-  const features = shuffle(pool(content, 'bunkers', s)).slice(0, Math.max(1, +s.bunkerFeatures || 5)).map(textOf);
+  const featItems = shuffle(pool(content, 'bunkers', s)).slice(0, Math.max(1, +s.bunkerFeatures || 5));
+  const features = featItems.map(textOf);
+  const featureFood = featItems.map(x => (x && x.foodMonths) || 0);
+  const condItem = (content.conditions || []).length ? pick(pool(content, 'conditions', s)) : null;
 
   const game = {
     version: 0, round: 0, phase: 'start', turn: 0, order: [],
@@ -143,8 +146,13 @@ export function newGame(playerIdsIn, content, settings, now) {
     players: [...playerIds],
     alive: Object.fromEntries(playerIds.map(p => [p, true])),
     revealed: {}, revealedRound: {}, votes: {}, effects: {},
-    catastrophe: { title: cat.title, text: cat.text || '', duration: cat.duration || 'неизвестно' },
-    bunker: { size: randInt(60, 450), features, shown: 0 },
+    catastrophe: { title: cat.title, text: cat.text || '', duration: cat.duration || 'неизвестно', months: cat.months || 0 },
+    bunker: {
+      size: randInt(60, 450), features, featureFood, shown: 0,
+      // базовый запас еды в месяцах: от четверти до ~120% нужного срока
+      food: cat.months ? Math.max(2, randInt(Math.round(cat.months * 0.25), Math.round(cat.months * 1.2))) : randInt(3, 24),
+      condition: condItem ? { text: condItem.text, desc: condItem.desc || '' } : null,
+    },
     event: '',
   };
   startRound(game, now);
@@ -234,6 +242,24 @@ function startRound(g, now) {
   g.bunker.shown = Math.min(g.bunker.features.length, (g.bunker.shown || 0) + 1);
   setPhase(g, 'speech', now);
   g.event = `Раунд ${g.round}`;
+}
+
+// Еда: базовый запас + открытые особенности бункера
+export function foodInfo(g) {
+  const b = g.bunker || {};
+  const ff = b.featureFood || [];
+  let months = +b.food || 0;
+  for (let i = 0; i < (b.shown || 0); i++) months += +ff[i] || 0;
+  months = Math.max(0, months);
+  const need = +(g.catastrophe || {}).months || 0;
+  const status = !need ? 'unknown' : months >= need ? 'ok' : 'short';
+  return { months, need, status, has: b.food !== undefined };
+}
+export function monthsText(m, short = false) {
+  const y = Math.floor(m / 12), r = m % 12;
+  const ys = y ? (short ? `${y} г.` : `${y} ${yearsWord(y)}`) : '';
+  const ms = r ? (short ? `${r} мес.` : `${r} ${plural(r, 'месяц', 'месяца', 'месяцев')}`) : '';
+  return [ys, ms].filter(Boolean).join(' ') || (short ? '0 мес.' : '0 месяцев');
 }
 
 export function endGame(g) {
@@ -365,7 +391,7 @@ const STORY = {
   character: (n, v) => `${n}: характер — «${lc(v)}» — влиял на атмосферу в бункере сильнее, чем хотелось бы.`,
 };
 
-export function makeStory(g, cards, names) {
+export function makeStory(g, cards, names, foodScore = {}) {
   norm(g);
   const surv = aliveIds(g);
   const c = g.catastrophe || {};
@@ -381,6 +407,15 @@ export function makeStory(g, cards, names) {
   });
   if (lines.length) out.push(lines.join(' '));
 
+  if (g.bunker.condition) out.push(`Сам бункер: ${lc(g.bunker.condition.text)}. ${g.bunker.condition.desc || ''}`.trim());
+  const fi = foodInfo(g);
+  if (fi.has && surv.length) {
+    const feeders = surv.filter(p => (foodScore[p] || 0) > 0).map(nm);
+    if (fi.status === 'ok') out.push(`Еды хватило с запасом: её было на ${monthsText(fi.months)}.`);
+    else if (fi.status === 'short' && feeders.length) out.push(`Еды хватило лишь на ${monthsText(fi.months)}, но ${feeders.join(', ')} ${feeders.length > 1 ? 'смогли' : 'смог(ла)'} наладить добычу пищи — от голода никто не умер.`);
+    else if (fi.status === 'short') out.push(`Еды хватило лишь на ${monthsText(fi.months)}. Добывать пищу никто не умел — последние месяцы выжившие провели впроголодь, и не все их пережили.`);
+    else out.push(`Запаса еды хватало на ${monthsText(fi.months)}${feeders.length ? `, а ${feeders.join(', ')} умели добывать пищу` : ''}.`);
+  }
   const shown = g.bunker.features.slice(0, g.bunker.shown || g.bunker.features.length);
   if (shown.length) out.push(`Из того, что было в бункере, сильнее всего повлияло: ${lc(pick(shown))}.`);
 

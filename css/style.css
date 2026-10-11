@@ -112,8 +112,7 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .tl { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); grid-column: 1; }
 
 .acts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-.act { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
-.act.used { opacity: .5; }
+
 
 .players { display: grid; gap: 10px; }
 @media (min-width: 560px) { .players { grid-template-columns: 1fr 1fr; } }
@@ -142,12 +141,12 @@ details summary { cursor: pointer; color: var(--muted); }
 
 /* ---------- Слои поверх игры ---------- */
 #overlay { position: relative; z-index: 50; }
-.toasts { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); width: min(92vw, 440px); display: flex; flex-direction: column; gap: 6px; pointer-events: none; z-index: 60; }
+.toasts { position: fixed; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); width: min(92vw, 440px); display: flex; flex-direction: column-reverse; gap: 6px; pointer-events: none; z-index: 60; }
 .toast { pointer-events: auto; background: var(--text); color: var(--bg); border-radius: 12px; padding: 10px 14px; font-size: .9rem; box-shadow: 0 6px 24px rgba(0,0,0,.25); animation: toastIn .25s ease-out; }
 .toast.small { font-size: .8rem; padding: 7px 12px; opacity: .92; }
 .toast.warn { background: var(--bad); color: #fff; }
-.toast.out { opacity: 0; transform: translateY(-8px); transition: .3s; }
-@keyframes toastIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+.toast.out { opacity: 0; transform: translateY(8px); transition: .3s; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
 .dlg-bg { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 70; animation: fadeIn .15s; }
 .dlg { background: var(--surface); color: var(--text); width: 100%; max-width: 380px; border-radius: 16px; padding: 20px; box-shadow: 0 20px 60px rgba(0,0,0,.35); animation: dlgIn .2s ease-out; }
@@ -185,15 +184,10 @@ details summary { cursor: pointer; color: var(--muted); }
 
 .tabs button { position: relative; }
 .badge { display: inline-block; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px; border-radius: 999px; background: var(--accent); color: var(--accent-text); font-size: .7rem; line-height: 18px; text-align: center; vertical-align: 1px; }
-.popup.pop-act { border-color: #7a5af8; }
-.popup.pop-act .popup-value { color: #7a5af8; }
-@media (prefers-color-scheme: dark) { .popup.pop-act { border-color: #a48bff; } .popup.pop-act .popup-value { color: #a48bff; } }
 
 /* ---------- Перенос длинного текста ---------- */
 .popup, .dlg, .modal, .toast, .banner, .card, .pcard, .act, .log li, .summary li, .plist li, .feats li { overflow-wrap: anywhere; word-break: normal; }
-.act > div, .phead b, .pname, .summary li span { min-width: 0; }
-.act > div { flex: 1 1 auto; }
-.act > .btn, .act > .tag, .act > .act-wait { flex: 0 0 auto; }
+.phead b, .pname, .summary li span { min-width: 0; }
 .popup { box-sizing: border-box; overflow: hidden; }
 .popup-value, .popup-name, .popup-sub { hyphens: auto; }
 .timer { flex: none; }
@@ -242,3 +236,39 @@ body.no-select { user-select: none; -webkit-user-select: none; }
 .feat-desc { display: block; font-size: .85rem; color: var(--muted); }
 /* пояснение к значкам на своей карте */
 .tgrid-hint { font-size: .78rem; color: var(--muted); margin: 4px 0 -2px; }
+
+/* ---------- Еда и состояние бункера ---------- */
+.food-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; font-size: .62rem; font-weight: 700; letter-spacing: 0; text-transform: none; vertical-align: 1px; border: 1px solid currentColor; }
+.food-tag.plus { color: var(--ok); }
+.food-tag.minus { color: var(--bad); }
+.food-tag.hot { background: currentColor; }
+.food-tag.hot.plus { background: var(--ok); color: #fff; border-color: var(--ok); }
+.food-tag.hot.minus { background: var(--bad); color: #fff; border-color: var(--bad); }
+.food-note { margin: 8px 0 4px; padding: 8px 10px; border-radius: 10px; font-size: .88rem; background: var(--bg); border: 1px solid var(--line); }
+.food-note.ok { border-color: color-mix(in srgb, var(--ok) 50%, var(--line)); }
+.food-note.short { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--surface)); }
+.cond { display: flex; flex-direction: column; gap: 1px; margin: 6px 0; padding: 8px 10px; border-radius: 10px; background: var(--bg); border: 1px solid var(--line); }
+.cond-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+
+/* ---------- Карты действий ---------- */
+:root { --act: #7a5af8; }
+@media (prefers-color-scheme: dark) { :root { --act: #a48bff; } }
+.act { display: flex; align-items: center; gap: 10px; background: color-mix(in srgb, var(--act) 6%, var(--surface)); border: 1px solid color-mix(in srgb, var(--act) 30%, var(--line)); border-left: 4px solid var(--act); border-radius: 10px; padding: 9px 10px; min-width: 0; }
+.act.used { opacity: .45; filter: grayscale(.6); }
+.act-ico { font-size: 1.4rem; line-height: 1; flex: none; width: 1.8rem; text-align: center; }
+.act-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.act-kind { font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--act); }
+.act-text { font-size: .8rem; color: var(--muted); line-height: 1.35; }
+.act-side { flex: none; display: flex; align-items: center; }
+.act-side .btn { border-color: var(--act); color: var(--act); padding: 6px 10px; font-size: .82rem; }
+.act-side .act-wait { max-width: 110px; }
+.act-dlg { border-top: 4px solid var(--act); }
+.act-hero { text-align: center; padding: 4px 0 12px; }
+.act-hero-ico { font-size: 2.4rem; line-height: 1; margin-bottom: 8px; }
+.act-hero-title { font-size: 1.25rem; font-weight: 800; color: var(--act); margin: 2px 0 6px; }
+.act-hero .act-text { font-size: .92rem; }
+.pick-label { margin: 0; font-weight: 600; }
+.popup.pop-act { border-color: var(--act); }
+.popup.pop-act .popup-value { color: var(--act); }
+.act-side .btn, .tc-side .btn { white-space: nowrap; }
+.act-dlg .btn.primary { background: var(--act); border-color: var(--act); color: #fff; }

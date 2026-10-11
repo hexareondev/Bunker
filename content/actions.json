@@ -7,7 +7,8 @@
    "type": "reroll_self",
    "key": "profession"
   },
-  "dark": false
+  "dark": false,
+  "icon": "💼"
  },
  {
   "id": "new_bio",
@@ -17,7 +18,8 @@
    "type": "reroll_self",
    "key": "biology"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🧬"
  },
  {
   "id": "new_bag",
@@ -27,7 +29,8 @@
    "type": "reroll_self",
    "key": "baggage"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🧳"
  },
  {
   "id": "new_any",
@@ -37,7 +40,8 @@
    "type": "reroll_self",
    "key": "random"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🔄"
  },
  {
   "id": "heal",
@@ -48,7 +52,8 @@
    "key": "health",
    "value": "Полностью здоров (исцелён)"
   },
-  "dark": false
+  "dark": false,
+  "icon": "💊"
  },
  {
   "id": "swap_bag",
@@ -58,7 +63,8 @@
    "type": "swap",
    "key": "baggage"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🔁"
  },
  {
   "id": "swap_health",
@@ -68,7 +74,8 @@
    "type": "swap",
    "key": "health"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🩺"
  },
  {
   "id": "swap_prof",
@@ -78,7 +85,8 @@
    "type": "swap",
    "key": "profession"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🔀"
  },
  {
   "id": "swap_phobia",
@@ -88,7 +96,8 @@
    "type": "swap",
    "key": "phobia"
   },
-  "dark": false
+  "dark": false,
+  "icon": "😨"
  },
  {
   "id": "shuffle_hobby",
@@ -98,7 +107,8 @@
    "type": "shuffle_all",
    "key": "hobby"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🎲"
  },
  {
   "id": "shuffle_bag",
@@ -108,7 +118,8 @@
    "type": "shuffle_all",
    "key": "baggage"
   },
-  "dark": false
+  "dark": false,
+  "icon": "📦"
  },
  {
   "id": "amnesia",
@@ -118,7 +129,8 @@
    "type": "reroll_all",
    "key": "fact"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🌀"
  },
  {
   "id": "reroll_char",
@@ -128,7 +140,8 @@
    "type": "reroll_target",
    "key": "character"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🎭"
  },
  {
   "id": "expose",
@@ -138,7 +151,8 @@
    "type": "reveal_target",
    "key": "random"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🔍"
  },
  {
   "id": "interrogate",
@@ -148,7 +162,8 @@
    "type": "reveal_target",
    "key": "health"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🩻"
  },
  {
   "id": "immunity",
@@ -157,7 +172,8 @@
   "effect": {
    "type": "immunity"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🛡️"
  },
  {
   "id": "double",
@@ -166,7 +182,8 @@
   "effect": {
    "type": "double_vote"
   },
-  "dark": false
+  "dark": false,
+  "icon": "✌️"
  },
  {
   "id": "cancel",
@@ -175,7 +192,8 @@
   "effect": {
    "type": "cancel_vote"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🚫"
  },
  {
   "id": "slot",
@@ -184,7 +202,8 @@
   "effect": {
    "type": "extra_slot"
   },
-  "dark": false
+  "dark": false,
+  "icon": "➕"
  },
  {
   "id": "scout",
@@ -193,7 +212,8 @@
   "effect": {
    "type": "bunker_reveal"
   },
-  "dark": false
+  "dark": false,
+  "icon": "🔦"
  },
  {
   "id": "revive",
@@ -202,7 +222,8 @@
   "effect": {
    "type": "revive"
   },
-  "dark": false
+  "dark": false,
+  "icon": "♻️"
  },
  {
   "id": "infect",
@@ -213,7 +234,8 @@
    "key": "health",
    "value": "Заражён неизвестным вирусом (заразно)"
   },
-  "dark": true
+  "dark": true,
+  "icon": "🤧"
  },
  {
   "id": "curse",
@@ -223,7 +245,8 @@
    "type": "reroll_target",
    "key": "phobia"
   },
-  "dark": true
+  "dark": true,
+  "icon": "🔮"
  },
  {
   "id": "rob",
@@ -233,6 +256,7 @@
    "type": "swap",
    "key": "baggage"
   },
-  "dark": true
+  "dark": true,
+  "icon": "🦹"
  }
 ]

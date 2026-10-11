@@ -1,5 +1,5 @@
 // Загрузка контента из content/*.json
-const FILES = ['professions', 'biology', 'health', 'hobbies', 'phobias', 'baggage', 'facts', 'characters', 'catastrophes', 'bunkers', 'actions'];
+const FILES = ['conditions', 'professions', 'biology', 'health', 'hobbies', 'phobias', 'baggage', 'facts', 'characters', 'catastrophes', 'bunkers', 'actions'];
 let cache = null;
 
 export async function loadContent() {
