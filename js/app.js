@@ -767,10 +767,13 @@ function traitRows(pid, g, { mine = false } = {}) {
     const btn = mine && !open && L.canReveal(g, pid, t.key) ? `<button class="btn small tc-btn" data-a="reveal" data-key="${t.key}">Раскрыть</button>` : '';
     const chip = mine ? (open ? '<span class="tc-chip on" title="Открыто всем">👁</span>' : '<span class="tc-chip" title="Видите только вы">🔒</span>') : '';
     return `<div class="tcard ${open ? 'open' : 'closed'}" style="--tc:${m.color}">
-      <div class="tc-head"><span class="tc-ico">${m.icon}</span><span class="tc-label">${t.label}</span>${chip}</div>
-      <div class="tc-val">${esc(card.traits[t.key])}</div>
-      ${desc ? `<div class="tc-desc">${esc(desc)}</div>` : ''}
-      ${btn}
+      <span class="tc-ico">${m.icon}</span>
+      <div class="tc-body">
+        <div class="tc-label">${t.label}</div>
+        <div class="tc-val">${esc(card.traits[t.key])}</div>
+        ${desc ? `<div class="tc-desc">${esc(desc)}</div>` : ''}
+      </div>
+      ${btn || chip ? `<div class="tc-side">${btn || chip}</div>` : ''}
     </div>`;
   }).join('');
   const hint = mine ? '<div class="tgrid-hint">🔒 видите только вы · 👁 открыто всем</div>' : '';
