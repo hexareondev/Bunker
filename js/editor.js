@@ -1,5 +1,5 @@
-import { makeZip, downloadBlob } from './zip.js?v=2.1';
-import * as E from './effects.js?v=2.1';
+import { makeZip, downloadBlob, readZip } from './zip.js?v=2.2';
+import * as E from './effects.js?v=2.2';
 
 // ---------------- Описание разделов ----------------
 const FOOD = { t: 'select', opts: [['0', 'нет'], ['1', '🍖 помогает с едой'], ['-1', '🍖 −еда (нужно больше еды)']], num: true };
@@ -191,6 +191,7 @@ function render() {
     <div class="ed-row ed-more">
       <button class="btn small ghost" data-a="json">Скачать «${esc(sec.label)}» (.json)</button>
       <label class="btn small ghost ed-file">Загрузить .json в раздел<input type="file" accept=".json,application/json" id="ed-import" hidden></label>
+      <label class="btn small ghost ed-file">Открыть архив набора (.zip)<input type="file" accept=".zip,application/zip" id="ed-import-zip" hidden></label>
       <button class="btn small ghost" data-a="resetSec">Сбросить раздел</button>
       <button class="btn small ghost" data-a="resetAll">Сбросить всё</button>
     </div>
@@ -522,6 +523,25 @@ $ed.addEventListener('change', async e => {
   }
   if (e.target.dataset.k && (e.target.type === 'checkbox' || e.target.tagName === 'SELECT')) onField(e.target);
   else if (e.target.dataset.k) onField(e.target, true);
+  if (e.target.id === 'ed-import-zip') {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const entries = await readZip(await file.arrayBuffer());
+      const loaded = [];
+      for (const en of entries) {
+        const f = en.name.split('/').pop().replace(/\.json$/i, '');
+        if (!SEC[f]) continue;
+        const arr = JSON.parse(en.text);
+        if (Array.isArray(arr)) { data[f] = arr; loaded.push(SEC[f].label); }
+      }
+      if (!loaded.length) return toast('В архиве нет файлов контента');
+      opened = new Set(); render(); saveDraft();
+      toast(`Открыто: ${loaded.join(', ')}`);
+    } catch (err) { toast('Не удалось открыть архив: ' + err.message); }
+    return;
+  }
   if (e.target.id === 'ed-import') {
     const file = e.target.files[0];
     if (!file) return;

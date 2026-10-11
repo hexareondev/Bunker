@@ -278,3 +278,13 @@ body.no-select { user-select: none; -webkit-user-select: none; }
 .choice { display: flex; flex-direction: column; gap: 2px; text-align: left; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--act); border-radius: 10px; padding: 9px 12px; cursor: pointer; }
 .choice:hover, .choice:focus-visible { border-color: var(--act); }
 .choice span { font-size: .8rem; color: var(--muted); }
+
+/* ---------- Набор карточек в лобби ---------- */
+.pack { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.pack.custom { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+.pack-title { font-weight: 700; }
+.pack-parts { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .85rem; }
+.pack-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pack-tools select { width: auto; padding: 8px 10px; font-size: .88rem; }
+.pack-tools label.btn { cursor: pointer; }
+.pack a { color: var(--accent); }

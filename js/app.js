@@ -5,9 +5,9 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=2.0';
-import { loadContent } from './content.js?v=2.0';
-import * as E from './effects.js?v=2.0';
+import * as L from './logic.js?v=2.2';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=2.2';
+import * as E from './effects.js?v=2.2';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -31,7 +31,22 @@ localStorage.setItem(LS.pid, me.id);
 let roomCode = null;
 let state = null;
 let roomUnsub = null, presenceUnsub = null;
-let content = null;
+let content = null;      // контент, с которым идёт игра (стандартный или свой набор лобби)
+let baseContent = null;  // стандартный контент с сайта
+let contentKey = null;
+
+// Контент = стандартный + свой набор комнаты (rooms/{code}/content)
+function syncContent() {
+  if (!baseContent) {
+    loadContent().then(c => { baseContent = c; syncContent(); render(); }).catch(console.error);
+    return;
+  }
+  const key = state?.content ? String(state.content.at || 'custom') + ':' + (state.content.mode || '') : '';
+  if (content && key === contentKey) return;
+  contentKey = key;
+  content = mergeContent(baseContent, state?.content);
+  descMaps = null;
+}
 let advancing = false;
 let storyRequested = '';
 const ui = { tab: 'me', modal: null, error: '', prefill: '' };
@@ -262,7 +277,7 @@ function enterRoom(code, { rejoin = false } = {}) {
     if (!state) return exitRoom('Лобби больше не существует');
     const p = state.players?.[me.id];
     if (!p || !p.name) return exitRoom('Вас удалили из лобби');
-    if (state.meta?.status === 'playing' && !content) loadContent().then(c => { content = c; descMaps = null; render(); }).catch(console.error);
+    syncContent();
     if (rejoinPending) {
       rejoinPending = false;
       if (state.meta?.status === 'playing') addLog(`@${me.id}@ вернулся(-ась) в игру`, { type: 'presence', actor: me.id });
@@ -294,6 +309,7 @@ function exitRoom(msg) {
   if (roomCode) onDisconnect(R('')).cancel().catch(() => {});
   seenLog = null;
   roomCode = null; state = null; ui.modal = null; ui.tab = 'me';
+  content = null; contentKey = null;
   localStorage.removeItem(LS.room);
   history.replaceState(null, '', location.pathname + location.search);
   ui.error = msg || '';
@@ -320,7 +336,9 @@ async function leaveRoom() {
 
 // ---------------- Хост: старт / новая партия ----------------
 async function startGame() {
-  content = await loadContent();
+  baseContent = baseContent || await loadContent();
+  contentKey = null;
+  syncContent();
   const s = { ...L.DEFAULT_SETTINGS, ...state.settings };
   const ids = validPlayers().filter(([id]) => s.hostPlays || id !== state.meta.hostId).map(([id]) => id);
   if (ids.length < 2) return toast('Нужно минимум 2 игрока', 'warn');
@@ -818,6 +836,44 @@ function renderHome() {
   </div>`);
 }
 
+function packHtml(host) {
+  const c = state.content;
+  let info;
+  if (c && c.files) {
+    const parts = CONTENT_FILES.map(f => [f, (toArray(c.files[f]) || []).length]).filter(([, n]) => n);
+    info = `<div class="pack-title">📦 Свой набор${c.name ? ` — ${esc(c.name)}` : ''}</div>
+      <div class="muted small">${c.mode === 'merge' ? 'Добавлен к стандартным карточкам' : 'Заменяет стандартные карточки в этих разделах (остальные — стандартные)'}:</div>
+      <div class="pack-parts">${parts.map(([f, n]) => `<span>${esc(FILE_LABELS[f] || f)}: <b>${n}</b></span>`).join('')}</div>`;
+  } else {
+    info = '<div class="pack-title">Стандартный набор</div><div class="muted small">Карточки, катастрофы и карты действий с сайта.</div>';
+  }
+  const tools = host ? `<div class="pack-tools">
+      <label class="btn small">${c ? 'Загрузить другой' : 'Загрузить свой набор'}<input type="file" id="pack-file" accept=".zip,.json,application/zip,application/json" multiple hidden></label>
+      ${c ? `<select id="pack-mode"><option value="replace" ${c.mode !== 'merge' ? 'selected' : ''}>Заменить стандартные</option><option value="merge" ${c.mode === 'merge' ? 'selected' : ''}>Добавить к стандартным</option></select>
+        <button class="btn small ghost" data-a="packClear">Вернуть стандартный</button>` : ''}
+    </div>
+    <div class="muted small">Архив из <a href="editor.html" target="_blank" rel="noopener">редактора</a> или отдельные .json-файлы. Набор действует только в этом лобби.</div>` : '';
+  return `<div class="pack ${c ? 'custom' : ''}">${info}${tools}</div>`;
+}
+
+async function uploadPack(fileListLive) {
+  const list = [...fileListLive];
+  if (!isHost() || !list.length) return;
+  const { files, skipped } = await parseUpload(list);
+  const names = Object.keys(files);
+  if (!names.length) return toast('В файлах не нашлось подходящих карточек' + (skipped.length ? ` (пропущено: ${skipped.slice(0, 3).join(', ')})` : ''), 'warn');
+  // .zip — новый набор целиком; отдельные .json дополняют уже загруженный набор
+  const onlyJson = list.every(f => /\.json$/i.test(f.name));
+  const prev = state.content;
+  const merged = onlyJson && prev?.files ? { ...prev.files, ...files } : files;
+  const size = JSON.stringify(merged).length;
+  if (size > 900000) return toast('Набор слишком большой (больше ~900 КБ)', 'warn');
+  const name = onlyJson && prev?.files ? (prev.name || 'Свой набор')
+    : list.length === 1 ? list[0].name.replace(/\.(zip|json)$/i, '') : 'Свой набор';
+  await set(R('content'), { name, mode: prev?.mode || 'replace', at: now(), by: me.id, files: merged });
+  toast(`${onlyJson && prev?.files ? 'Добавлено в набор' : 'Набор загружен'}: ${names.map(f => FILE_LABELS[f] || f).join(', ')}`);
+}
+
 function lobbyRows(ps, s, host) {
   let n = 0;
   return ps.map(([id, p]) => {
@@ -862,6 +918,8 @@ function renderLobby() {
     <ul class="plist ${host ? 'sortable' : ''}" id="seat-list">
       ${lobbyRows(ps, s, host)}
     </ul>
+    <h2>Набор карточек</h2>
+    ${packHtml(host)}
     <h2>Настройки</h2>
     <p class="muted small">Играют: ${playing}. Мест в бункере: ${s.slots > 0 ? Math.min(s.slots, Math.max(1, playing - 1)) : autoSlots}${s.slots > 0 ? '' : ' (авто)'}</p>
     ${host ? `<div class="settings">${FIELDS.map(f => settingInput(f, s[f.k], s)).join('')}</div>`
@@ -1214,6 +1272,7 @@ $app.addEventListener('click', async e => {
       }
       case 'kickLobby': if (await ask(`Убрать ${nameOf(pid)} из лобби?`, 'Убрать', { danger: true })) await remove(R(`players/${pid}`)); break;
       case 'start': await startGame(); break;
+      case 'packClear': if (await ask('Вернуть стандартный набор карточек?', 'Вернуть')) await remove(R('content')); break;
       case 'tab': ui.tab = b.dataset.tab; render(); break;
       case 'reveal': await revealMine(b.dataset.key); break;
       case 'done': {
@@ -1313,6 +1372,15 @@ function renumberSeats(list) {
 }
 
 $app.addEventListener('change', e => {
+  if (e.target.id === 'pack-file') {
+    uploadPack(e.target.files).catch(err => toast('Ошибка: ' + err.message, 'warn'));
+    e.target.value = '';
+    return;
+  }
+  if (e.target.id === 'pack-mode' && isHost()) {
+    update(R('content'), { mode: e.target.value, at: now() }).catch(err => toast('Ошибка: ' + err.message, 'warn'));
+    return;
+  }
   const el = e.target.closest('[data-set]');
   if (el) changeSetting(el).catch(err => toast('Ошибка: ' + err.message, 'warn'));
 });
