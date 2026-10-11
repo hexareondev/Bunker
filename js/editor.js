@@ -1,4 +1,5 @@
-import { makeZip, downloadBlob } from './zip.js?v=1.9';
+import { makeZip, downloadBlob } from './zip.js?v=2.1';
+import * as E from './effects.js?v=2.1';
 
 // ---------------- Описание разделов ----------------
 const FOOD = { t: 'select', opts: [['0', 'нет'], ['1', '🍖 помогает с едой'], ['-1', '🍖 −еда (нужно больше еды)']], num: true };
@@ -7,22 +8,6 @@ const TRAIT_FIELDS = [
   { k: 'desc', l: 'Описание (необязательно)', t: 'area', ph: 'Чем это полезно или опасно в бункере' },
   { k: 'food', l: 'Связь с едой', ...FOOD },
   { k: 'dark', l: 'Чёрный юмор', t: 'check' },
-];
-const TRAIT_KEYS = [['', '— нет —'], ['random', 'случайная'], ['profession', 'Профессия'], ['biology', 'Биология'], ['health', 'Здоровье'], ['hobby', 'Хобби'], ['phobia', 'Фобия'], ['baggage', 'Багаж'], ['fact', 'Факт'], ['character', 'Характер']];
-const EFFECTS = [
-  ['reroll_self', 'Заменить свою характеристику на случайную'],
-  ['reroll_target', 'Заменить характеристику выбранному игроку'],
-  ['reroll_all', 'Заменить характеристику всем'],
-  ['swap', 'Обменяться характеристикой с игроком'],
-  ['shuffle_all', 'Перемешать характеристику у всех'],
-  ['reveal_target', 'Раскрыть характеристику игрока'],
-  ['set_target', 'Установить игроку значение (поле «Значение»)'],
-  ['immunity', 'Иммунитет от голосов в этом раунде'],
-  ['double_vote', 'Двойной голос в этом раунде'],
-  ['cancel_vote', 'Сорвать текущее голосование'],
-  ['extra_slot', '+1 место в бункере'],
-  ['bunker_reveal', 'Открыть особенность бункера'],
-  ['revive', 'Вернуть изгнанного игрока'],
 ];
 
 const SECTIONS = [
@@ -56,10 +41,19 @@ const SECTIONS = [
   { f: 'actions', label: 'Карты действий', icon: '🃏', color: '#7a5af8', main: 'title', fields: [
     { k: 'icon', l: 'Значок (эмодзи)', t: 'text', short: true },
     { k: 'title', l: 'Название', t: 'text', req: true },
-    { k: 'text', l: 'Что делает (текст для игроков)', t: 'area', req: true },
-    { k: 'effect.type', l: 'Действие', t: 'select', opts: EFFECTS },
-    { k: 'effect.key', l: 'Какая характеристика', t: 'select', opts: TRAIT_KEYS },
-    { k: 'effect.value', l: 'Значение (только для «Установить игроку значение»)', t: 'text' },
+    { k: 'text', l: 'Текст для игроков (если пусто — возьмётся описание действия)', t: 'area', gen: true },
+    { k: 'effect.type', l: 'Тип карты', t: 'select', opts: E.KINDS, re: true },
+    { k: 'effect.op', l: '① Действие', t: 'select', opts: E.OPS, re: true, show: ef => ef.type === 'change' },
+    { k: 'effect.object', l: 'Что меняем', t: 'select', opts: E.OBJECTS, re: true, show: ef => ef.type === 'change' },
+    { k: 'effect.key', l: 'Какая характеристика', t: 'select', opts: E.TRAIT_KEY_OPTS, re: true, show: E.needsKey },
+    { k: 'effect.target', l: 'Кому', t: 'select', opts: E.TARGETS, re: true, show: ef => ef.type === 'change' && ef.object === 'trait' },
+    { k: 'effect.mode', l: '② Какое значение', t: 'select', opts: ef => (ef.op === 'remove' ? E.MODES_REMOVE : E.MODES_ADD), re: true, show: E.hasModes },
+    { k: 'effect.pool.source', l: 'Пул', t: 'select', re: true, show: E.usesPool,
+      opts: ef => (ef.op === 'remove' ? [['random', 'Любое из имеющихся у цели'], ['preset', 'Только из заданного списка']] : E.POOL_SOURCES) },
+    { k: 'effect.pool.items', l: 'Значения пула — отметьте из имеющихся', t: 'pick', show: ef => E.usesPool(ef) && ef.pool.source === 'preset' },
+    { k: 'effect.pool.size', l: 'Сколько случайных вариантов набрать в пул', t: 'num', re: true, show: ef => E.usesPool(ef) && ef.pool.source === 'random' && ef.op !== 'remove' },
+    { k: 'effect.value', l: 'Значение', t: 'text', re: true, list: true, show: ef => E.hasModes(ef) && ef.mode === 'fixed' },
+    { k: 'effect.amount', l: 'Сколько (мест или месяцев еды)', t: 'num', re: true, show: E.isNumeric },
     { k: 'id', l: 'ID (латиницей, уникальный)', t: 'text', short: true, req: true },
     { k: 'dark', l: 'Чёрный юмор', t: 'check' },
   ] },
@@ -97,17 +91,37 @@ function clean(item) {
   if ('foodMonths' in x && !Number(x.foodMonths)) delete x.foodMonths;
   if ('months' in x && (x.months === '' || x.months === undefined)) x.months = null;
   if ('icon' in x && !x.icon) delete x.icon;
-  if (x.effect) {
-    if (!x.effect.key) delete x.effect.key;
-    if (!x.effect.value) delete x.effect.value;
-  }
+  if (x.effect) x.effect = cleanEffect(x.effect);
   for (const k of ['text', 'title', 'desc', 'duration', 'id']) if (typeof x[k] === 'string') x[k] = x[k].trim();
   return x;
 }
 
+// Оставляем в эффекте только поля, нужные для выбранного типа
+function cleanEffect(raw) {
+  const e = JSON.parse(JSON.stringify(raw || {}));
+  if (e.type !== 'change') {
+    for (const k of ['op', 'object', 'target', 'mode', 'pool', 'value', 'amount']) delete e[k];
+    if (!E.needsKey(e) || !e.key) delete e.key;
+    return e;
+  }
+  if (e.object !== 'trait') { delete e.key; delete e.target; }
+  if (!E.hasModes(e)) { delete e.mode; delete e.pool; delete e.value; }
+  if (E.hasModes(e)) {
+    if (e.mode !== 'fixed') delete e.value;
+    if (!E.usesPool(e)) delete e.pool;
+    else if (e.pool) {
+      if (e.pool.source === 'preset') { delete e.pool.size; e.pool.items = (e.pool.items || []).map(v => String(v).trim()).filter(Boolean); }
+      else delete e.pool.items;
+      if (e.op === 'remove') delete e.pool.size;
+    }
+  }
+  if (!E.isNumeric(e)) delete e.amount;
+  return e;
+}
+
 function newItem(f) {
   if (f === 'catastrophes') return { title: '', text: '', duration: '', months: null, dark: false };
-  if (f === 'actions') return { id: 'custom_' + Date.now().toString(36), icon: '🃏', title: '', text: '', effect: { type: 'reroll_self', key: 'random' }, dark: false };
+  if (f === 'actions') return { id: 'custom_' + Date.now().toString(36), icon: '🃏', title: '', text: '', effect: { type: 'change', op: 'replace', object: 'trait', key: 'random', target: 'self', mode: 'random' }, dark: false };
   return { text: '', dark: false };
 }
 
@@ -204,16 +218,67 @@ function summaryText(sec, x) {
 }
 
 function fieldHtml(f, x, i) {
+  const ef = E.normalizeEffect(x.effect || {});
+  if (f.show && !f.show(ef)) return '';
   const v = getPath(x, f.k);
-  const id = `f-${i}-${f.k.replace('.', '_')}`;
+  const id = `f-${i}-${f.k.replace(/\./g, '_')}`;
   const attrs = `id="${id}" data-i="${i}" data-k="${f.k}"`;
   if (f.t === 'check') return `<label class="row-check"><input type="checkbox" ${attrs} ${v ? 'checked' : ''}><span>${f.l}</span></label>`;
   let input;
+  const opts = typeof f.opts === 'function' ? f.opts(ef) : f.opts;
+  const cur = f.k.startsWith('effect.') ? getPath({ effect: ef }, f.k) : v;
   if (f.t === 'area') input = `<textarea ${attrs} rows="2" placeholder="${esc(f.ph || '')}">${esc(v ?? '')}</textarea>`;
-  else if (f.t === 'select') input = `<select ${attrs}>${f.opts.map(([val, lab]) => `<option value="${esc(val)}" ${String(v ?? (f.num ? '0' : '')) === String(val) ? 'selected' : ''}>${esc(lab)}</option>`).join('')}</select>`;
-  else if (f.t === 'num') input = `<input type="number" inputmode="numeric" ${attrs} value="${v === null || v === undefined ? '' : esc(v)}">`;
-  else input = `<input type="text" ${attrs} value="${esc(v ?? '')}" placeholder="${esc(f.ph || '')}">`;
-  return `<label class="field ${f.short ? 'short' : ''}"><span>${f.l}${f.req ? ' <span class="req">*</span>' : ''}</span>${input}</label>`;
+  else if (f.t === 'pick') return `<div class="field"><span>${f.l}</span>${pickerHtml(ef, i, cur || [])}</div>`;
+  else if (f.t === 'select') input = `<select ${attrs}>${opts.map(([val, lab]) => `<option value="${esc(val)}" ${String(cur ?? (f.num ? '0' : '')) === String(val) ? 'selected' : ''}>${esc(lab)}</option>`).join('')}</select>`;
+  else if (f.t === 'num') input = `<input type="number" inputmode="numeric" ${attrs} value="${cur === null || cur === undefined ? '' : esc(cur)}">`;
+  else input = `<input type="text" ${attrs} value="${esc(cur ?? '')}" placeholder="${esc(f.ph || '')}" ${f.list ? `list="${listId(ef)}"` : ''}>${f.list ? suggestHtml(ef, true) : ''}`;
+  const gen = f.gen ? ` <button type="button" class="ed-gen" data-a="gen" data-i="${i}">↻ взять из действия</button>` : '';
+  return `<label class="field ${f.short ? 'short' : ''}"><span>${f.l}${f.req ? ' <span class="req">*</span>' : ''}${gen}</span>${input}</label>`;
+}
+
+// Выбор значений пула из уже имеющихся в разделе
+function chipsHtml(i, items) {
+  return `<div class="pick-chips">${items.length ? items.map(v => `<span class="pick-chip">${esc(v)}<button type="button" data-a="poolDel" data-i="${i}" data-v="${esc(v)}" aria-label="Убрать">×</button></span>`).join('') : '<span class="ed-sub">Пока ничего не выбрано</span>'}</div>`;
+}
+function pickerHtml(ef, i, items) {
+  const file = fileFor(ef);
+  if (!file) return '<div class="ed-sub">Сначала выберите конкретную характеристику — тогда появится список её значений.</div>';
+  const vals = (data[file] || []).map(x => x.text).filter(Boolean);
+  const sel = new Set(items);
+  return `<div class="pick" data-i="${i}">
+    ${chipsHtml(i, items)}
+    <input type="search" class="pick-q" data-pick-q="${i}" placeholder="Поиск в «${esc(SEC[file]?.label || file)}» (${vals.length})">
+    <div class="pick-list">${vals.map(v => `<label class="pick-row"><input type="checkbox" data-pick="${i}" value="${esc(v)}" ${sel.has(v) ? 'checked' : ''}><span>${esc(v)}</span></label>`).join('')}</div>
+  </div>`;
+}
+function setPoolItems(i, items) {
+  const item = data[cur][i];
+  item.effect.pool = item.effect.pool || { source: 'preset' };
+  item.effect.pool.items = items;
+  const det = document.querySelector(`.ed-item[data-i="${i}"]`);
+  if (det) {
+    const chips = det.querySelector('.pick-chips');
+    if (chips) chips.outerHTML = chipsHtml(i, items);
+    det.querySelectorAll(`[data-pick="${i}"]`).forEach(cb => { cb.checked = items.includes(cb.value); });
+    const pv = det.querySelector('.ed-preview'); if (pv) pv.outerHTML = previewHtml(item);
+    det.querySelector('.ed-badges').innerHTML = badges(SEC[cur], item);
+    det.classList.toggle('mod', changedItem(cur, i));
+  }
+  saveDraft();
+}
+
+// Подсказки значений из игры для пула и фиксированного значения
+function fileFor(ef) {
+  if (ef.object === 'feature') return 'bunkers';
+  return { profession: 'professions', biology: 'biology', health: 'health', hobby: 'hobbies', phobia: 'phobias', baggage: 'baggage', fact: 'facts', character: 'characters' }[ef.key] || '';
+}
+const listId = ef => 'dl-' + (fileFor(ef) || 'none');
+function suggestHtml(ef, asDatalist = false) {
+  const file = fileFor(ef);
+  if (!file) return asDatalist ? '' : '<span class="ed-sub">Выберите конкретную характеристику, чтобы видеть подсказки.</span>';
+  const vals = (data[file] || []).map(x => x.text).filter(Boolean);
+  if (asDatalist) return `<datalist id="${listId(ef)}">${vals.map(v => `<option value="${esc(v)}">`).join('')}</datalist>`;
+  return `<span class="ed-sub">Можно вписывать свои значения или существующие из раздела «${esc(SEC[file]?.label || file)}» (всего ${vals.length}).</span>`;
 }
 
 function itemHtml(sec, x, i) {
@@ -221,6 +286,7 @@ function itemHtml(sec, x, i) {
     <summary><span class="ed-sum">${summaryText(sec, x)}</span><span class="ed-badges">${badges(sec, x)}</span></summary>
     <div class="ed-fields">
       ${sec.fields.map(f => fieldHtml(f, x, i)).join('')}
+      ${sec.f === 'actions' ? `<div class="ed-preview"><b>Как сработает:</b> ${esc(E.describeEffect(x.effect))}${E.effectIssues(x.effect).length ? `<div class="ed-warn">⚠ ${esc(E.effectIssues(x.effect).join(', '))}</div>` : ''}</div>` : ''}
       <div class="ed-item-btns">
         <button class="btn small ghost" data-a="dup" data-i="${i}">Дублировать</button>
         <button class="btn small ghost danger-text" data-a="del" data-i="${i}">Удалить</button>
@@ -270,6 +336,15 @@ function validate() {
     });
     if (!(data[s.f] || []).length) issues.push(`${s.label}: раздел пуст — в игре будет нечего выдавать`);
   }
+  (data.actions || []).forEach((x, i) => {
+    for (const msg of E.effectIssues(x.effect)) issues.push(`Карты действий: «${x.title || '№' + (i + 1)}» — ${msg}`);
+    const ef = E.normalizeEffect(x.effect);
+    if (E.usesPool(ef) && ef.pool.source === 'preset') {
+      const ok = new Set((data[fileFor(ef)] || []).map(y => y.text));
+      const bad = ef.pool.items.filter(v => !ok.has(v));
+      if (bad.length) issues.push(`Карты действий: «${x.title || '№' + (i + 1)}» — в пуле есть значения, которых больше нет в игре: ${bad.join(', ')}`);
+    }
+  });
   const ids = (data.actions || []).map(a => a.id);
   const dup = ids.filter((id, i) => id && ids.indexOf(id) !== i);
   if (dup.length) issues.push(`Карты действий: повторяются ID — ${[...new Set(dup)].join(', ')}`);
@@ -331,6 +406,15 @@ $ed.addEventListener('click', async e => {
     opened = new Set();
     render(); saveDraft();
     toast('Запись удалена');
+  } else if (a === 'poolDel') {
+    const items = (data[cur][i].effect.pool?.items || []).filter(v => v !== b.dataset.v);
+    setPoolItems(i, items);
+  } else if (a === 'gen') {
+    const item = data[cur][i];
+    item.text = E.describeEffect(item.effect);
+    const det = b.closest('.ed-item');
+    if (det) rerenderItem(det, i);
+    saveDraft();
   } else if (a === 'zip') downloadZip();
   else if (a === 'json') {
     downloadBlob(new Blob([ser(data[cur])], { type: 'application/json' }), `${cur}.json`);
@@ -358,7 +442,7 @@ $ed.addEventListener('toggle', e => {
   if (d.open) opened.add(key); else opened.delete(key);
 }, true);
 
-function onField(el) {
+function onField(el, isChange = false) {
   const i = +el.dataset.i, k = el.dataset.k;
   const sec = SEC[cur];
   const f = sec.fields.find(x => x.k === k);
@@ -369,16 +453,53 @@ function onField(el) {
   else if (f && f.num) v = Number(el.value);
   else v = el.value;
   setPath(item, k, v);
+  if (k.startsWith('effect.')) {
+    E.fixDefaults(item.effect);
+    // значения пула должны существовать в выбранном разделе
+    const ef = item.effect;
+    if (ef.pool && Array.isArray(ef.pool.items)) {
+      const file = fileFor(ef);
+      const ok = new Set((data[file] || []).map(x => x.text));
+      ef.pool.items = file ? ef.pool.items.filter(v => ok.has(v)) : [];
+    }
+  }
   const det = el.closest('.ed-item');
   if (det) {
     det.querySelector('.ed-sum').innerHTML = summaryText(sec, item);
     det.querySelector('.ed-badges').innerHTML = badges(sec, item);
     det.classList.toggle('mod', changedItem(cur, i));
+    // поля, от которых зависят другие, перерисовывают карточку (для текста — по завершении ввода)
+    if (f && f.re && (el.tagName === 'SELECT' || isChange)) rerenderItem(det, i);
+    else if (sec.f === 'actions') { const pv = det.querySelector('.ed-preview'); if (pv) pv.outerHTML = previewHtml(item); }
   }
   saveDraft();
 }
+function previewHtml(x) {
+  const iss = E.effectIssues(x.effect);
+  return `<div class="ed-preview"><b>Как сработает:</b> ${esc(E.describeEffect(x.effect))}${iss.length ? `<div class="ed-warn">⚠ ${esc(iss.join(', '))}</div>` : ''}</div>`;
+}
+let rerendering = false;
+function rerenderItem(det, i) {
+  if (rerendering || !det || !det.isConnected) return;
+  rerendering = true;
+  try { doRerender(det, i); } finally { rerendering = false; }
+}
+function doRerender(det, i) {
+  const focusId = document.activeElement?.id;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = itemHtml(SEC[cur], data[cur][i], i);
+  const fresh = tmp.firstElementChild;
+  fresh.open = true;
+  det.replaceWith(fresh);
+  if (focusId) document.getElementById(focusId)?.focus();
+}
 
 $ed.addEventListener('input', e => {
+  if (e.target.dataset.pickQ !== undefined) {
+    const q = e.target.value.trim().toLowerCase();
+    e.target.closest('.pick').querySelectorAll('.pick-row').forEach(r => { r.style.display = !q || r.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+    return;
+  }
   if (e.target.id === 'ed-q') {
     query = e.target.value;
     const pos = e.target.selectionStart;
@@ -387,10 +508,20 @@ $ed.addEventListener('input', e => {
     q.focus(); q.setSelectionRange(pos, pos);
     return;
   }
-  if (e.target.dataset.k) onField(e.target);
+  if (e.target.dataset.k && e.target.tagName !== 'SELECT' && e.target.type !== 'checkbox') onField(e.target);
 });
 $ed.addEventListener('change', async e => {
+  if (e.target.dataset.pick !== undefined) {
+    const i = +e.target.dataset.pick;
+    const items = [...(data[cur][i].effect.pool?.items || [])];
+    const v = e.target.value;
+    if (e.target.checked && !items.includes(v)) items.push(v);
+    if (!e.target.checked && items.includes(v)) items.splice(items.indexOf(v), 1);
+    setPoolItems(i, items);
+    return;
+  }
   if (e.target.dataset.k && (e.target.type === 'checkbox' || e.target.tagName === 'SELECT')) onField(e.target);
+  else if (e.target.dataset.k) onField(e.target, true);
   if (e.target.id === 'ed-import') {
     const file = e.target.files[0];
     if (!file) return;

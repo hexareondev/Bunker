@@ -4,8 +4,12 @@
   "title": "Переквалификация",
   "text": "Замените свою профессию на случайную новую.",
   "effect": {
-   "type": "reroll_self",
-   "key": "profession"
+   "type": "change",
+   "op": "replace",
+   "object": "trait",
+   "key": "profession",
+   "target": "self",
+   "mode": "random"
   },
   "dark": false,
   "icon": "💼"
@@ -15,8 +19,12 @@
   "title": "Новая жизнь",
   "text": "Замените свою биологию на случайную новую.",
   "effect": {
-   "type": "reroll_self",
-   "key": "biology"
+   "type": "change",
+   "op": "replace",
+   "object": "trait",
+   "key": "biology",
+   "target": "self",
+   "mode": "random"
   },
   "dark": false,
   "icon": "🧬"
@@ -26,8 +34,12 @@
   "title": "Не тот чемодан",
   "text": "Замените свой багаж на случайный новый.",
   "effect": {
-   "type": "reroll_self",
-   "key": "baggage"
+   "type": "change",
+   "op": "replace",
+   "object": "trait",
+   "key": "baggage",
+   "target": "self",
+   "mode": "random"
   },
   "dark": false,
   "icon": "🧳"
@@ -37,8 +49,12 @@
   "title": "Перерождение",
   "text": "Замените свою случайную характеристику на новую.",
   "effect": {
-   "type": "reroll_self",
-   "key": "random"
+   "type": "change",
+   "op": "replace",
+   "object": "trait",
+   "key": "random",
+   "target": "self",
+   "mode": "random"
   },
   "dark": false,
   "icon": "🔄"
@@ -48,8 +64,12 @@
   "title": "Чудесное исцеление",
   "text": "Выбранный игрок (можно себя) становится полностью здоров.",
   "effect": {
-   "type": "set_target",
+   "type": "change",
+   "op": "replace",
+   "object": "trait",
    "key": "health",
+   "target": "player",
+   "mode": "fixed",
    "value": "Полностью здоров (исцелён)"
   },
   "dark": false,
@@ -126,8 +146,12 @@
   "title": "Всеобщая амнезия",
   "text": "Всем оставшимся игрокам выдаются новые факты.",
   "effect": {
-   "type": "reroll_all",
-   "key": "fact"
+   "type": "change",
+   "op": "replace",
+   "object": "trait",
+   "key": "fact",
+   "target": "all",
+   "mode": "random"
   },
   "dark": false,
   "icon": "🌀"
@@ -137,8 +161,12 @@
   "title": "Перевоспитание",
   "text": "Выбранному игроку выдаётся новый характер.",
   "effect": {
-   "type": "reroll_target",
-   "key": "character"
+   "type": "change",
+   "op": "replace",
+   "object": "trait",
+   "key": "character",
+   "target": "player",
+   "mode": "random"
   },
   "dark": false,
   "icon": "🎭"
@@ -200,7 +228,10 @@
   "title": "Тайник",
   "text": "В бункере нашлось ещё одно место: +1 место.",
   "effect": {
-   "type": "extra_slot"
+   "type": "change",
+   "op": "add",
+   "object": "slots",
+   "amount": 1
   },
   "dark": false,
   "icon": "➕"
@@ -230,8 +261,12 @@
   "title": "Чих в лицо",
   "text": "Выбранный игрок заражён неизвестным вирусом.",
   "effect": {
-   "type": "set_target",
+   "type": "change",
+   "op": "replace",
+   "object": "trait",
    "key": "health",
+   "target": "player",
+   "mode": "fixed",
    "value": "Заражён неизвестным вирусом (заразно)"
   },
   "dark": true,
@@ -242,8 +277,12 @@
   "title": "Проклятие цыганки",
   "text": "Выбранному игроку выдаётся новая фобия.",
   "effect": {
-   "type": "reroll_target",
-   "key": "phobia"
+   "type": "change",
+   "op": "replace",
+   "object": "trait",
+   "key": "phobia",
+   "target": "player",
+   "mode": "random"
   },
   "dark": true,
   "icon": "🔮"
@@ -258,5 +297,172 @@
   },
   "dark": true,
   "icon": "🦹"
+ },
+ {
+  "id": "find_bag",
+  "icon": "🎁",
+  "title": "Находка на складе",
+  "text": "Добавьте себе в багаж одну вещь на выбор из трёх случайных.",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "trait",
+   "key": "baggage",
+   "target": "self",
+   "mode": "pool_choice",
+   "pool": {
+    "source": "random",
+    "size": 3
+   }
+  },
+  "dark": false
+ },
+ {
+  "id": "gift_pet",
+  "icon": "🐾",
+  "title": "Питомец",
+  "text": "Выбранному игроку достаётся случайное животное.",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "trait",
+   "key": "baggage",
+   "target": "player",
+   "mode": "pool_random",
+   "pool": {
+    "source": "preset",
+    "items": [
+     "Кошка",
+     "Собака-овчарка",
+     "Курица-несушка",
+     "Коза"
+    ]
+   }
+  },
+  "dark": false
+ },
+ {
+  "id": "new_skill",
+  "icon": "📚",
+  "title": "Курсы выживания",
+  "text": "Добавьте себе новое хобби: одно из полезных на выбор.",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "trait",
+   "key": "hobby",
+   "target": "self",
+   "mode": "pool_choice",
+   "pool": {
+    "source": "preset",
+    "items": [
+     "Выживание в дикой природе",
+     "Курсы первой помощи",
+     "Садоводство",
+     "Охота",
+     "Ремонт техники"
+    ]
+   }
+  },
+  "dark": false
+ },
+ {
+  "id": "therapy",
+  "icon": "🧘",
+  "title": "Психотерапия",
+  "text": "Избавьтесь от одной своей фобии.",
+  "effect": {
+   "type": "change",
+   "op": "remove",
+   "object": "trait",
+   "key": "phobia",
+   "target": "self",
+   "mode": "pool_choice"
+  },
+  "dark": false
+ },
+ {
+  "id": "thief",
+  "icon": "🧤",
+  "title": "Карманник",
+  "text": "У случайного игрока пропадает вещь из багажа.",
+  "effect": {
+   "type": "change",
+   "op": "remove",
+   "object": "trait",
+   "key": "baggage",
+   "target": "random_player",
+   "mode": "random"
+  },
+  "dark": false
+ },
+ {
+  "id": "stash_food",
+  "icon": "🥫",
+  "title": "Тайник с консервами",
+  "text": "В бункере нашлось ещё полгода еды.",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "food",
+   "amount": 6
+  },
+  "dark": false
+ },
+ {
+  "id": "spoiled",
+  "icon": "🦠",
+  "title": "Плесень на складе",
+  "text": "Часть запасов испортилась: −4 месяца еды.",
+  "effect": {
+   "type": "change",
+   "op": "remove",
+   "object": "food",
+   "amount": 4
+  },
+  "dark": false
+ },
+ {
+  "id": "collapse",
+  "icon": "🧱",
+  "title": "Обвал",
+  "text": "Обрушился один из отсеков: в бункере на одно место меньше.",
+  "effect": {
+   "type": "change",
+   "op": "remove",
+   "object": "slots",
+   "amount": 1
+  },
+  "dark": false
+ },
+ {
+  "id": "renovation",
+  "icon": "🛠️",
+  "title": "Ремонт",
+  "text": "Добавьте в бункер особенность на выбор из двух случайных.",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "feature",
+   "mode": "pool_choice",
+   "pool": {
+    "source": "random",
+    "size": 2
+   }
+  },
+  "dark": false
+ },
+ {
+  "id": "fire",
+  "icon": "🔥",
+  "title": "Пожар в отсеке",
+  "text": "Из бункера пропадает случайная открытая особенность.",
+  "effect": {
+   "type": "change",
+   "op": "remove",
+   "object": "feature",
+   "mode": "random"
+  },
+  "dark": true
  }
 ]

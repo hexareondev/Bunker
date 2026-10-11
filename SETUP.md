@@ -90,12 +90,31 @@ python -m http.server 8000
 Карта действия:
 
 ```json
-{ "id": "swap_bag", "icon": "🔁", "title": "Обмен багажом", "text": "Поменяйтесь багажом с выбранным игроком.",
-  "effect": { "type": "swap", "key": "baggage" }, "dark": false }
+{ "id": "find_bag", "icon": "🎁", "title": "Находка на складе",
+  "text": "Добавьте себе в багаж одну вещь на выбор из трёх случайных.",
+  "effect": { "type": "change", "op": "add", "object": "trait", "key": "baggage",
+              "target": "self", "mode": "pool_choice", "pool": { "source": "random", "size": 3 } },
+  "dark": false }
 ```
 
-Доступные `type`: `reroll_self`, `reroll_target`, `reroll_all`, `swap`, `shuffle_all`, `reveal_target`, `set_target` (нужно поле `value`), `immunity`, `double_vote`, `cancel_vote`, `extra_slot`, `bunker_reveal`, `revive`.
-`key` — одна из характеристик: `profession`, `biology`, `health`, `hobby`, `phobia`, `baggage`, `fact`, `character` или `random`.
+Составной эффект (`"type": "change"`) собирается из частей:
+
+| Поле | Значения |
+|---|---|
+| `op` | `add` — добавить, `remove` — убрать, `replace` — заменить |
+| `object` | `trait` — характеристика игрока, `feature` — особенность бункера, `slots` — места, `food` — запас еды в месяцах |
+| `key` | для `trait`: `profession`, `biology`, `health`, `hobby`, `phobia`, `baggage`, `fact`, `character` или `random` |
+| `target` | для `trait`: `self` — себе, `player` — выбранному игроку, `all` — всем, `random_player` — случайному игроку |
+| `mode` | для `trait` и `feature`: `random` — случайно из всей игры, `pool_random` — случайно из пула, `pool_choice` — игрок выбирает из пула, `fixed` — заранее заданное значение |
+| `pool` | для `pool_*`: `{ "source": "preset", "items": [...] }` — список из существующих значений раздела (в редакторе отмечаются галочками), или `{ "source": "random", "size": 3 }` — случайный набор из игры |
+| `value` | для `mode: fixed` — само значение |
+| `amount` | для `slots` и `food` — сколько |
+
+При «убрать» пул работает как фильтр: убирается только то, что есть у цели (и, если задан список, только из него).
+
+Особые карты: `swap` (обмен характеристикой `key`), `shuffle_all`, `reveal_target`, `immunity`, `double_vote`, `cancel_vote`, `bunker_reveal`, `revive`. Старые типы (`reroll_self`, `set_target`, `extra_slot` и т. п.) по-прежнему понимаются игрой.
+
+Если характеристике что-то добавили, значения хранятся через « + », например `Аптечка + Коза`.
 
 ## Ограничения текущей версии
 

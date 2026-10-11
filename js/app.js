@@ -5,8 +5,9 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=1.9';
-import { loadContent } from './content.js?v=1.9';
+import * as L from './logic.js?v=2.0';
+import { loadContent } from './content.js?v=2.0';
+import * as E from './effects.js?v=2.0';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -68,7 +69,14 @@ function itemIn(file, text) {
 }
 function descIn(file, text) { return (itemIn(file, text) || {}).desc || ''; }
 const traitFile = key => (L.TRAITS.find(t => t.key === key) || {}).file;
-const traitFood = (pid, key) => +((itemIn(traitFile(key), state?.cards?.[pid]?.raw?.[key]) || {}).food || 0);
+// Характеристика может содержать несколько значений через « + » (после карт «Добавить»)
+const SEP = ' + ';
+const NONE = 'Нет';
+function rawParts(pid, key) {
+  const r = state?.cards?.[pid]?.raw?.[key];
+  return r && r !== NONE ? String(r).split(SEP) : [];
+}
+const traitFood = (pid, key) => rawParts(pid, key).reduce((sum, r) => sum + +((itemIn(traitFile(key), r) || {}).food || 0), 0);
 const featureFood = f => +((itemIn('bunkers', f) || {}).food || 0);
 function foodScore(pid) { return L.TRAIT_KEYS.reduce((sum, k) => sum + Math.max(0, traitFood(pid, k)), 0); }
 function foodTag(v, hot) {
@@ -76,7 +84,7 @@ function foodTag(v, hot) {
   return `<span class="food-tag ${v > 0 ? 'plus' : 'minus'} ${hot ? 'hot' : ''}" title="${v > 0 ? 'Помогает с едой' : 'Нужно больше еды или особое питание'}">🍖 ${v > 0 ? 'еда' : '−еда'}</span>`;
 }
 const traitDesc = (key, raw) => descIn((L.TRAITS.find(t => t.key === key) || {}).file, raw);
-const cardDesc = (pid, key) => traitDesc(key, state?.cards?.[pid]?.raw?.[key]);
+const cardDesc = (pid, key) => rawParts(pid, key).map(r => traitDesc(key, r)).filter(Boolean).join(' · ');
 const featureDesc = f => descIn('bunkers', f);
 const nameOf = pid => state?.players?.[pid]?.name || '???';
 const isHost = () => state?.meta?.hostId === me.id;
@@ -431,56 +439,183 @@ async function vote(target) {
   addLog(g.settings.voteSecret ? `@${me.id}@ проголосовал(а)` : `@${me.id}@ ${what}`, { type: 'vote', actor: me.id });
 }
 
-const NEEDS_TARGET = ['reroll_target', 'swap', 'reveal_target', 'set_target', 'revive'];
-
 function targetsFor(effect) {
+  const e = E.normalizeEffect(effect);
   const g = L.norm(clone(state.game));
   const alive = L.aliveIds(g);
-  switch (effect.type) {
+  switch (e.type) {
     case 'revive': return g.players.filter(p => !g.alive[p]);
-    case 'set_target': return alive;
-    case 'reveal_target': return alive.filter(p => p !== me.id && (effect.key && effect.key !== 'random' ? L.hiddenKeys(g, p).includes(effect.key) : L.hiddenKeys(g, p).length > 0));
+    case 'reveal_target': return alive.filter(p => p !== me.id && (e.key && e.key !== 'random' ? L.hiddenKeys(g, p).includes(e.key) : L.hiddenKeys(g, p).length > 0));
+    case 'change': return alive; // можно выбрать и себя
     default: return alive.filter(p => p !== me.id);
   }
 }
 
-async function useAction(i, target) {
+// ---------- Составные действия ----------
+function traitPartsOf(card, k) {
+  const raw = String(card?.raw?.[k] ?? card?.traits?.[k] ?? '');
+  const val = String(card?.traits?.[k] ?? '');
+  if (!raw || raw === NONE) return { raw: [], val: [] };
+  const r = raw.split(SEP), v = val.split(SEP);
+  return r.length === v.length ? { raw: r, val: v } : { raw: [raw], val: [val] };
+}
+function gamePool(file, g) { return L.pool(content, file, g.settings).map(L.textOf); }
+function sample(arr, n) { return L.shuffle(arr).slice(0, n); }
+const featureFoodMonths = f => +((itemIn('bunkers', f) || {}).foodMonths || 0);
+
+// Ключ характеристики для действия (случайный выбирается один раз)
+function resolveKey(e) { return e.key && e.key !== 'random' ? e.key : L.pick(L.TRAIT_KEYS); }
+
+// Варианты для выбора игроком (mode = pool_choice)
+function choiceOptions(e, g, target, key) {
+  const cards = state.cards || {};
+  if (e.object === 'feature') {
+    const F = g.bunker.features, shown = F.slice(0, g.bunker.shown);
+    if (e.op === 'remove') return e.pool?.source === 'preset' ? shown.filter(f => e.pool.items.includes(f)) : shown;
+    const fresh = x => !F.includes(x);
+    return e.pool.source === 'preset' ? e.pool.items.filter(fresh) : sample(gamePool('bunkers', g).filter(fresh), e.pool.size);
+  }
+  const file = traitFile(key);
+  const own = traitPartsOf(cards[target], key).raw;
+  if (e.op === 'remove') return e.pool?.source === 'preset' ? own.filter(x => e.pool.items.includes(x)) : own;
+  if (e.pool.source === 'preset') return e.pool.items.filter(x => !own.includes(x));
+  return sample(gamePool(file, g).filter(x => !own.includes(x)), e.pool.size);
+}
+
+// Новое значение для добавления/замены
+function pickNewValue(e, g, file, exclude, choice) {
+  if (e.mode === 'fixed') return e.value;
+  if (e.mode === 'pool_choice') return choice;
+  let list;
+  if (e.mode === 'pool_random' && e.pool.source === 'preset') list = e.pool.items.filter(Boolean);
+  else list = gamePool(file, g);
+  const fresh = list.filter(x => !exclude.has(x));
+  return L.pick(fresh.length ? fresh : list);
+}
+
+function applyChange(e, g, ctx, upd) {
+  const cards = state.cards || {};
+  const out = []; // фразы для журнала
+  let popup = null;
+
+  if (e.object === 'slots') {
+    const n = e.op === 'add' ? g.slots + e.amount : e.op === 'remove' ? Math.max(1, g.slots - e.amount) : Math.max(1, e.amount);
+    upd['game/slots'] = n;
+    out.push(`мест в бункере теперь ${n}`);
+    return { out, popup };
+  }
+  if (e.object === 'food') {
+    const base = +g.bunker.food || 0;
+    upd['game/bunker/food'] = e.op === 'add' ? base + e.amount : e.op === 'remove' ? base - e.amount : e.amount - (L.foodInfo(g).months - base);
+    const after = L.foodInfo({ ...g, bunker: { ...g.bunker, food: upd['game/bunker/food'] } }).months;
+    out.push(`еды теперь на ${L.monthsText(after)}`);
+    return { out, popup };
+  }
+  if (e.object === 'feature') {
+    const F = [...g.bunker.features];
+    const FF = [...(g.bunker.featureFood || F.map(() => 0))];
+    while (FF.length < F.length) FF.push(0);
+    let S = g.bunker.shown || 0;
+    if (e.op === 'remove') {
+      let cand = F.slice(0, S).map((f, idx) => ({ f, idx }));
+      if (e.mode === 'pool_random' && e.pool.source === 'preset') cand = cand.filter(c => e.pool.items.includes(c.f));
+      if (e.mode === 'fixed') cand = cand.filter(c => c.f === e.value);
+      const c = e.mode === 'pool_choice' ? cand.find(x => x.f === ctx.choice) : L.pick(cand);
+      if (!c) { out.push('в бункере нечего убрать'); return { out, popup }; }
+      F.splice(c.idx, 1); FF.splice(c.idx, 1); S--;
+      out.push(`из бункера пропало: ${c.f}`);
+    } else {
+      const v = pickNewValue(e, g, 'bunkers', new Set(F), ctx.choice);
+      if (!v) { out.push('ничего не изменилось'); return { out, popup }; }
+      const shownIdx = [...Array(S).keys()];
+      if (e.op === 'replace' && shownIdx.length) {
+        const idx = L.pick(shownIdx);
+        out.push(`в бункере «${F[idx]}» заменено на «${v}»`);
+        F[idx] = v; FF[idx] = featureFoodMonths(v);
+      } else {
+        F.splice(S, 0, v); FF.splice(S, 0, featureFoodMonths(v)); S++;
+        out.push(`в бункере появилось: ${v}`);
+      }
+      popup = { type: 'bunker', feature: v };
+    }
+    upd['game/bunker/features'] = F;
+    upd['game/bunker/featureFood'] = FF;
+    upd['game/bunker/shown'] = S;
+    return { out, popup };
+  }
+
+  // Характеристика игрока
+  const key = ctx.key || resolveKey(e);
+  const file = traitFile(key);
+  const label = L.traitLabel(key);
+  const alive = L.aliveIds(g);
+  let targets;
+  if (e.target === 'self') targets = [me.id];
+  else if (e.target === 'player') targets = [ctx.target];
+  else if (e.target === 'all') targets = alive;
+  else { const others = alive.filter(p => p !== me.id); targets = [L.pick(others.length ? others : alive)]; }
+  const used = new Set(g.players.flatMap(p => traitPartsOf(cards[p], key).raw));
+
+  for (const pid of targets.filter(Boolean)) {
+    const card = cards[pid];
+    if (!card) continue;
+    const parts = traitPartsOf(card, key);
+    const open = !!(g.revealed[pid] || {})[key];
+    const show = v => (open ? ` — ${v}` : ' (значение скрыто)');
+    const whose = pid === me.id ? 'у себя' : `у @${pid}@`;
+    if (e.op === 'remove') {
+      let cand = parts.raw.map((r, idx) => ({ r, idx }));
+      if ((e.mode === 'pool_random' || e.mode === 'pool_choice') && e.pool?.source === 'preset') cand = cand.filter(c => e.pool.items.includes(c.r));
+      if (e.mode === 'fixed') cand = cand.filter(c => c.r === e.value);
+      const c = e.mode === 'pool_choice' && ctx.choice !== undefined ? cand.find(x => x.r === ctx.choice) : L.pick(cand);
+      if (!c) { out.push(`${whose} нечего убрать в «${label}»`); continue; }
+      const removed = parts.val[c.idx];
+      parts.raw.splice(c.idx, 1); parts.val.splice(c.idx, 1);
+      out.push(`${whose} убрано из «${label}»${show(removed)}`);
+    } else {
+      const v = pickNewValue(e, g, file, new Set([...used, ...parts.raw]), ctx.choice);
+      if (!v) continue;
+      used.add(v);
+      const val = L.formatTrait(key, v, card.age);
+      if (e.op === 'add') { parts.raw.push(v); parts.val.push(val); out.push(`${whose} добавлено в «${label}»${show(val)}`); }
+      else { parts.raw = [v]; parts.val = [val]; out.push(`${whose} заменена характеристика «${label}»${show(val)}`); }
+    }
+    upd[`cards/${pid}/raw/${key}`] = parts.raw.length ? parts.raw.join(SEP) : NONE;
+    upd[`cards/${pid}/traits/${key}`] = parts.val.length ? parts.val.join(SEP) : NONE;
+  }
+  if (e.target === 'all' && out.length > 2) return { out: [`у всех изменена характеристика «${label}»`], popup };
+  return { out, popup };
+}
+
+async function useAction(i, ctx = {}) {
   const c = content || await loadContent();
   content = c;
   const g = L.norm(clone(state.game));
   const cards = state.cards || {};
   const a = cards[me.id]?.actions?.[i];
   if (!a || a.used || !g.alive[me.id] || g.phase === 'end') return;
-  const e = a.effect || {};
-  const s = g.settings;
-  const alive = L.aliveIds(g);
+  const e = E.normalizeEffect(a.effect);
+  const target = ctx.target;
   const key = !e.key || e.key === 'random' ? L.pick(L.TRAIT_KEYS) : e.key;
   const label = L.traitLabel(key);
   const upd = {};
   let msg = `@${me.id}@ применил(а) карту «${a.title}»`;
   let revealExtra = null;
 
-  const usedRaw = k => new Set(g.players.map(p => cards[p]?.raw?.[k]).filter(Boolean));
-  const reroll = (pid, k) => {
-    let age = cards[pid].age;
-    if (k === 'biology') { age = L.makeAge(s); upd[`cards/${pid}/age`] = age; }
-    const t = L.makeTrait(k, c, s, age, usedRaw(k));
-    upd[`cards/${pid}/traits/${k}`] = t.value;
-    upd[`cards/${pid}/raw/${k}`] = t.raw;
-  };
   const put = (pid, k, from) => {
     upd[`cards/${pid}/traits/${k}`] = from.traits[k];
     upd[`cards/${pid}/raw/${k}`] = from.raw?.[k] || from.traits[k];
     if (k === 'biology') upd[`cards/${pid}/age`] = from.age;
   };
+  const alive = L.aliveIds(g);
 
   switch (e.type) {
-    case 'reroll_self':
-      reroll(me.id, key); msg += ` и получил(а) новую характеристику «${label}»`; break;
-    case 'reroll_target':
-      reroll(target, key); msg += `: у @${target}@ заменена характеристика «${label}»`; break;
-    case 'reroll_all':
-      alive.forEach(p => reroll(p, key)); msg += `: у всех заменена характеристика «${label}»`; break;
+    case 'change': {
+      const r = applyChange(e, g, ctx, upd);
+      msg += r.out.length ? `: ${r.out.join('; ')}` : '';
+      if (r.popup) revealExtra = r.popup;
+      break;
+    }
     case 'swap':
       put(me.id, key, cards[target]); put(target, key, cards[me.id]);
       msg += `: обмен характеристикой «${label}» с @${target}@`; break;
@@ -499,10 +634,6 @@ async function useAction(i, target) {
       revealExtra = { type: 'reveal', actor: me.id, who: nameOf(target), key: k, label: L.traitLabel(k), value: cards[target].traits[k], desc: cardDesc(target, k) };
       break;
     }
-    case 'set_target':
-      upd[`cards/${target}/traits/${key}`] = e.value;
-      upd[`cards/${target}/raw/${key}`] = e.value;
-      msg += `: у @${target}@ «${label}» теперь — ${e.value}`; break;
     case 'immunity':
       upd[`game/effects/immune/${me.id}`] = g.round; msg += ' — иммунитет в этом раунде'; break;
     case 'double_vote':
@@ -510,8 +641,6 @@ async function useAction(i, target) {
     case 'cancel_vote':
       if (g.phase !== 'vote') return toast('Эту карту можно применить только во время голосования', 'warn');
       upd['game/effects/cancelVote'] = g.round; msg += ' — голосование будет сорвано'; break;
-    case 'extra_slot':
-      upd['game/slots'] = increment(1); msg += ' — в бункере +1 место'; break;
     case 'bunker_reveal':
       if (g.bunker.shown >= g.bunker.features.length) return toast('Все особенности бункера уже открыты', 'warn');
       upd['game/bunker/shown'] = increment(1);
@@ -530,6 +659,29 @@ async function useAction(i, target) {
   sub = sub ? sub[0].toUpperCase() + sub.slice(1) : '';
   addLog(msg, { type: 'action', actor: me.id, who: me.name, title: a.title, sub, icon: actIcon(a),
     ...(revealExtra && revealExtra.label ? { label: revealExtra.label, value: revealExtra.value } : {}) });
+}
+
+// Запуск карты: выбор игрока → выбор варианта → подтверждение
+async function startAction(i) {
+  const act = state.cards[me.id].actions[i];
+  const g = L.norm(clone(state.game));
+  const why = actionBlockReason(act, g);
+  if (why) return toast(why, 'warn');
+  const e = E.normalizeEffect(act.effect);
+  if (E.needsPlayer(e)) { ui.modal = { i, step: 'target' }; render(); return; }
+  if (E.needsChoice(e) && !(e.op === 'remove' && e.target !== 'self' && e.object === 'trait')) return openChoice(i, undefined);
+  if (await dialog({ html: actionCardHtml(act), ok: 'Применить', cls: 'act-dlg' })) await useAction(i);
+}
+function openChoice(i, target) {
+  const act = state.cards[me.id].actions[i];
+  const g = L.norm(clone(state.game));
+  const e = E.normalizeEffect(act.effect);
+  const key = e.object === 'trait' ? resolveKey(e) : undefined;
+  const tgt = target ?? me.id;
+  const options = choiceOptions(e, g, tgt, key);
+  if (!options.length) { ui.modal = null; render(); return toast(e.op === 'remove' ? 'Убирать нечего' : 'Не из чего выбрать', 'warn'); }
+  ui.modal = { i, step: 'choice', target, key, options };
+  render();
 }
 
 // ---------------- Админка ----------------
@@ -843,7 +995,7 @@ function tabMe(g, playing) {
       <div class="acts">${acts.map((a, i) => `
         <div class="act ${a.used ? 'used' : ''}">
           <span class="act-ico">${actIcon(a)}</span>
-          <div class="act-body"><div class="act-kind">Карта действия</div><b>${esc(a.title)}</b><div class="act-text">${esc(a.text)}</div></div>
+          <div class="act-body"><div class="act-kind">Карта действия</div><b>${esc(a.title)}</b><div class="act-text">${esc(a.text || E.describeEffect(a.effect))}</div></div>
           <div class="act-side">${a.used ? '<span class="tag">использована</span>' : alive ? actionControl(a, i, g) : ''}</div>
         </div>`).join('')}</div>` : ''}
     <button class="btn ghost" data-a="leave">Выйти (можно вернуться)</button>`;
@@ -877,8 +1029,16 @@ function actionBlockReason(a, g) {
       });
       return ok ? '' : 'Раскрывать нечего';
     }
+    case 'change': {
+      const n = E.normalizeEffect(e);
+      if (n.object === 'slots' && n.op === 'remove' && g.slots <= 1) return 'Меньше мест быть не может';
+      if (n.object === 'food' && n.op === 'remove' && L.foodInfo(g).months <= 0) return 'Еды и так нет';
+      if (n.object === 'feature' && n.op === 'remove' && !(g.bunker.shown > 0)) return 'В бункере пока нечего убирать';
+      if (n.object === 'trait' && n.op === 'remove' && n.target === 'self' && n.key !== 'random' && !rawParts(me.id, n.key).length) return 'Нечего убирать';
+      return '';
+    }
     default:
-      if (NEEDS_TARGET.includes(e.type) && !targetsFor(e).length) return 'Нет подходящих игроков';
+      if (E.needsPlayer(e) && !targetsFor(e).length) return 'Нет подходящих игроков';
       return '';
   }
 }
@@ -889,7 +1049,7 @@ function actIcon(a) {
   return (found && found.icon) || '🃏';
 }
 function actionCardHtml(a) {
-  return `<div class="act-hero"><div class="act-hero-ico">${actIcon(a)}</div><div class="act-kind">Карта действия</div><div class="act-hero-title">${esc(a.title)}</div><div class="act-text">${esc(a.text)}</div></div>`;
+  return `<div class="act-hero"><div class="act-hero-ico">${actIcon(a)}</div><div class="act-kind">Карта действия</div><div class="act-hero-title">${esc(a.title)}</div><div class="act-text">${esc(a.text || E.describeEffect(a.effect))}</div></div>`;
 }
 
 function actionControl(a, i, g) {
@@ -987,11 +1147,24 @@ function renderModal(g) {
   if (!ui.modal) return '';
   const a = state.cards?.[me.id]?.actions?.[ui.modal.i];
   if (!a) { ui.modal = null; return ''; }
-  const targets = targetsFor(a.effect);
+  const e = E.normalizeEffect(a.effect);
+  let body;
+  if (ui.modal.step === 'choice') {
+    const what = e.object === 'feature' ? 'особенность бункера' : `«${L.traitLabel(ui.modal.key)}»`;
+    const file = e.object === 'feature' ? 'bunkers' : traitFile(ui.modal.key);
+    body = `<p class="pick-label">${e.op === 'remove' ? `Что убрать — ${what}:` : `Выберите ${what}:`}</p>
+      <div class="choice-list">${ui.modal.options.map((o, ci) => {
+        const d = descIn(file, o);
+        return `<button class="choice" data-a="choose" data-ci="${ci}"><b>${esc(o)}</b>${d ? `<span>${esc(d)}</span>` : ''}</button>`;
+      }).join('')}</div>`;
+  } else {
+    const targets = targetsFor(a.effect);
+    body = `<p class="pick-label">Выберите игрока:</p>
+      <div class="vote-grid">${targets.length ? targets.map(p => `<button class="btn small" data-a="target" data-pid="${p}">${esc(nameOf(p))}${p === me.id ? ' (вы)' : ''}</button>`).join('') : '<span class="muted">Подходящих игроков нет</span>'}</div>`;
+  }
   return `<div class="modal-bg" data-a="closeModal"><div class="modal act-dlg" data-stop="1">
     ${actionCardHtml(a)}
-    <p class="pick-label">Выберите игрока:</p>
-    <div class="vote-grid">${targets.length ? targets.map(p => `<button class="btn small" data-a="target" data-pid="${p}">${esc(nameOf(p))}${p === me.id ? ' (вы)' : ''}</button>`).join('') : '<span class="muted">Подходящих игроков нет</span>'}</div>
+    ${body}
     <button class="btn ghost" data-a="closeModal">Отмена</button>
   </div></div>`;
 }
@@ -1049,16 +1222,21 @@ $app.addEventListener('click', async e => {
         break;
       }
       case 'vote': await vote(pid); break;
-      case 'act': {
-        const i = +b.dataset.i;
-        const act = state.cards[me.id].actions[i];
-        const why = actionBlockReason(act, L.norm(clone(state.game)));
-        if (why) { toast(why, 'warn'); break; }
-        if (NEEDS_TARGET.includes(act.effect?.type)) { ui.modal = { i }; render(); }
-        else if (await dialog({ html: actionCardHtml(act), ok: 'Применить', cls: 'act-dlg' })) await useAction(i);
+      case 'act': await startAction(+b.dataset.i); break;
+      case 'target': {
+        const i = ui.modal.i;
+        const e = E.normalizeEffect(state.cards[me.id].actions[i].effect);
+        if (E.needsChoice(e)) { openChoice(i, pid); break; }
+        ui.modal = null; render();
+        await useAction(i, { target: pid });
         break;
       }
-      case 'target': { const i = ui.modal.i; ui.modal = null; render(); await useAction(i, pid); break; }
+      case 'choose': {
+        const m = ui.modal;
+        ui.modal = null; render();
+        await useAction(m.i, { target: m.target, key: m.key, choice: m.options[+b.dataset.ci] });
+        break;
+      }
       case 'closeModal': ui.modal = null; render(); break;
       case 'next': await doAdvance(state.game.version || 0); break;
       case 'pause': await adminPause(); break;

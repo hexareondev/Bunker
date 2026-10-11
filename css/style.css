@@ -272,3 +272,9 @@ body.no-select { user-select: none; -webkit-user-select: none; }
 .popup.pop-act .popup-value { color: var(--act); }
 .act-side .btn, .tc-side .btn { white-space: nowrap; }
 .act-dlg .btn.primary { background: var(--act); border-color: var(--act); color: #fff; }
+
+/* выбор варианта для карты действия */
+.choice-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; }
+.choice { display: flex; flex-direction: column; gap: 2px; text-align: left; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--act); border-radius: 10px; padding: 9px 12px; cursor: pointer; }
+.choice:hover, .choice:focus-visible { border-color: var(--act); }
+.choice span { font-size: .8rem; color: var(--muted); }
