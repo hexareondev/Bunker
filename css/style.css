@@ -109,12 +109,7 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; }
 .card h3 { margin: 4px 0; }
-.trait { padding: 9px 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; }
-.trait:first-child { border-top: 0; }
 .tl { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); grid-column: 1; }
-.tv { grid-column: 1; }
-.trait .btn { grid-column: 2; grid-row: 1 / span 2; }
-.card .trait:not(.open) .tv { opacity: .75; }
 
 .acts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
 .act { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
@@ -126,7 +121,6 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1
 .pcard.dead { opacity: .55; }
 .pcard.speaking { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .phead { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 4px; }
-.pcard .trait { grid-template-columns: 1fr; }
 
 .feats { margin: 6px 0 0; padding-left: 20px; }
 .feats li { margin: 4px 0; }
@@ -197,7 +191,7 @@ details summary { cursor: pointer; color: var(--muted); }
 
 /* ---------- Перенос длинного текста ---------- */
 .popup, .dlg, .modal, .toast, .banner, .card, .pcard, .act, .log li, .summary li, .plist li, .feats li { overflow-wrap: anywhere; word-break: normal; }
-.act > div, .trait .tv, .trait .tl, .phead b, .pname, .summary li span { min-width: 0; }
+.act > div, .phead b, .pname, .summary li span { min-width: 0; }
 .act > div { flex: 1 1 auto; }
 .act > .btn, .act > .tag, .act > .act-wait { flex: 0 0 auto; }
 .popup { box-sizing: border-box; overflow: hidden; }
@@ -209,3 +203,39 @@ details summary { cursor: pointer; color: var(--muted); }
   .tabs button { flex: 1 1 auto; padding: 7px 7px; font-size: .78rem; }
   .badge { margin-left: 3px; min-width: 16px; height: 16px; line-height: 16px; font-size: .65rem; padding: 0 4px; }
 }
+
+/* ---------- Порядок игроков ---------- */
+.plist li { touch-action: auto; }
+.grip { cursor: grab; touch-action: none; user-select: none; font-size: 1.15rem; line-height: 1; color: var(--muted); padding: 4px 6px 4px 0; margin-left: -4px; }
+.seat { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--bg); border: 1px solid var(--line); font-size: .75rem; font-weight: 700; flex: none; }
+.plist li.dragging { background: var(--bg); box-shadow: 0 6px 20px rgba(0,0,0,.18); position: relative; z-index: 2; border-radius: 10px; }
+.plist li.dragging .grip { cursor: grabbing; color: var(--accent); }
+body.no-select { user-select: none; -webkit-user-select: none; }
+
+/* ---------- Карточки характеристик ---------- */
+.tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 6px 0 14px; }
+.pcard .tgrid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); margin: 6px 0 4px; gap: 6px; }
+.tcard { position: relative; display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--tc); border-radius: 12px; padding: 9px 10px 10px; overflow-wrap: anywhere; min-width: 0; }
+.tcard.open { background: color-mix(in srgb, var(--tc) 9%, var(--surface)); border-color: color-mix(in srgb, var(--tc) 35%, var(--line)); border-top-color: var(--tc); }
+.tcard.closed { border-style: dashed; border-top-style: solid; }
+.tc-head { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.tc-ico { font-size: 1rem; line-height: 1; flex: none; }
+.tc-label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--tc); flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-chip { flex: none; font-size: .8rem; line-height: 1; opacity: .55; }
+.tc-chip.on { opacity: 1; }
+.tc-val { font-weight: 600; font-size: .95rem; line-height: 1.3; }
+.tc-desc { font-size: .78rem; color: var(--muted); line-height: 1.35; }
+.tc-btn { margin-top: 4px; align-self: flex-start; border-color: var(--tc); color: var(--tc); }
+.pcard .tc-val { font-size: .88rem; }
+
+/* карточка раскрытия в цвете характеристики */
+.popup.pop-trait { border-color: var(--tc); }
+.popup.pop-trait .popup-label { color: var(--tc); }
+.popup-ico { font-size: 2rem; line-height: 1; margin-top: 10px; }
+
+/* ---------- Особенности бункера ---------- */
+.feats li { margin: 8px 0; }
+.feat-name { display: block; font-weight: 600; }
+.feat-desc { display: block; font-size: .85rem; color: var(--muted); }
+/* пояснение к значкам на своей карте */
+.tgrid-hint { font-size: .78rem; color: var(--muted); margin: 4px 0 -2px; }

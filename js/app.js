@@ -42,7 +42,33 @@ const R = p => ref(db, `rooms/${roomCode}${p ? '/' + p : ''}`);
 
 const validPlayers = () => Object.entries(state?.players || {})
   .filter(([, p]) => p && p.name)
-  .sort((a, b) => (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
+  .sort((a, b) => seatOf(a[1]) - seatOf(b[1]) || (a[1].joinedAt || 0) - (b[1].joinedAt || 0));
+function seatOf(p) { return typeof p.seat === 'number' ? p.seat : 1e9; }
+// Оформление характеристик
+const TMETA = {
+  profession: { icon: '💼', color: '#3b82f6' },
+  biology: { icon: '🧬', color: '#ec4899' },
+  health: { icon: '🩺', color: '#ef4444' },
+  hobby: { icon: '🎨', color: '#f59e0b' },
+  phobia: { icon: '😱', color: '#8b5cf6' },
+  baggage: { icon: '🎒', color: '#10b981' },
+  fact: { icon: '📜', color: '#78716c' },
+  character: { icon: '🎭', color: '#06b6d4' },
+};
+// Описания из content/*.json (поле desc)
+let descMaps = null;
+function descIn(file, text) {
+  if (!content || !text) return '';
+  descMaps = descMaps || {};
+  if (!descMaps[file]) {
+    descMaps[file] = {};
+    for (const x of content[file] || []) if (x && x.desc) descMaps[file][x.text] = x.desc;
+  }
+  return descMaps[file][text] || '';
+}
+const traitDesc = (key, raw) => descIn((L.TRAITS.find(t => t.key === key) || {}).file, raw);
+const cardDesc = (pid, key) => traitDesc(key, state?.cards?.[pid]?.raw?.[key]);
+const featureDesc = f => descIn('bunkers', f);
 const nameOf = pid => state?.players?.[pid]?.name || '???';
 const isHost = () => state?.meta?.hostId === me.id;
 const fillNames = t => String(t || '').replace(/@([A-Za-z0-9_-]+)@/g, (_, id) => nameOf(id));
@@ -101,8 +127,9 @@ function nextPopup() {
   popupBusy = true;
   const el = document.createElement('div');
   el.className = 'popup-bg';
-  el.innerHTML = `<div class="popup ${e.cls || ''}">
+  el.innerHTML = `<div class="popup ${e.cls || ''}" ${e.color ? `style="--tc:${e.color}"` : ''}>
     ${e.top ? `<div class="popup-top">${esc(e.top)}</div>` : ''}
+    ${e.icon ? `<div class="popup-ico">${e.icon}</div>` : ''}
     ${e.label ? `<div class="popup-label">${esc(e.label)}</div>` : ''}
     ${e.value ? `<div class="popup-value">${esc(e.value)}</div>` : ''}
     ${e.name ? `<div class="popup-name">${esc(e.name)}</div>` : ''}
@@ -132,16 +159,20 @@ function processLog() {
 }
 function notifyEntry(e) {
   if (!e) return;
-  if (e.type === 'reveal') showPopup({ top: `${e.who} раскрывает`, label: e.label, value: e.value });
+  if (e.type === 'reveal') {
+    const m = TMETA[e.key] || {};
+    showPopup({ cls: e.key ? 'pop-trait' : '', color: m.color, icon: m.icon, top: `${e.who} раскрывает`, label: e.label, value: e.value, sub: e.desc });
+  }
   else if (e.type === 'action') showPopup({ cls: 'pop-act', top: `${e.who} применяет карту`, value: e.title, sub: e.sub });
   else if (e.type === 'exile') showPopup({ cls: 'exile', top: 'Изгнан(а) из бункера', name: e.who });
   else if (e.type === 'start') {
     ui.tab = 'bunker';
     render();
     showPopup({ cls: 'cat', top: 'Катастрофа', value: e.title, sub: `${e.catText} Продержаться: ${e.duration}.`, long: true });
-    showPopup({ cls: 'info', top: 'Ваш бункер', value: `${e.size} м² · мест: ${e.slots}`, sub: e.feature ? `В бункере есть: ${e.feature}` : '', long: true });
+    const fd = featureDesc(e.feature);
+    showPopup({ cls: 'info', top: 'Ваш бункер', value: `${e.size} м² · мест: ${e.slots}`, sub: e.feature ? `В бункере есть: ${e.feature}${fd ? '. ' + fd : ''}` : '', long: true });
   } else if (e.type === 'bunker') {
-    showPopup({ cls: 'info', top: e.round ? `Раунд ${e.round}` : 'Бункер', label: 'Открыта особенность бункера', value: e.feature });
+    showPopup({ cls: 'info', top: e.round ? `Раунд ${e.round}` : 'Бункер', label: 'Открыта особенность бункера', value: e.feature, sub: featureDesc(e.feature) });
   }
   else if (e.type === 'vote' || e.type === 'presence') { if (e.actor !== me.id) toast(e.text, 'small'); }
   else toast(e.text);
@@ -208,7 +239,7 @@ function enterRoom(code, { rejoin = false } = {}) {
     if (!state) return exitRoom('Лобби больше не существует');
     const p = state.players?.[me.id];
     if (!p || !p.name) return exitRoom('Вас удалили из лобби');
-    if (state.meta?.status === 'playing' && !content) loadContent().then(c => { content = c; }).catch(console.error);
+    if (state.meta?.status === 'playing' && !content) loadContent().then(c => { content = c; descMaps = null; render(); }).catch(console.error);
     if (rejoinPending) {
       rejoinPending = false;
       if (state.meta?.status === 'playing') addLog(`@${me.id}@ вернулся(-ась) в игру`, { type: 'presence', actor: me.id });
@@ -311,7 +342,7 @@ async function doAdvance(expectedVersion) {
           for (const k of L.TRAIT_KEYS) {
             if (now_[k] && !was[k]) {
               const value = state.cards?.[sp]?.traits?.[k] || '';
-              addLog(`@${sp}@ (время вышло) раскрыл(а) «${L.traitLabel(k)}»: ${value}`, { type: 'reveal', who: nameOf(sp), label: L.traitLabel(k), value, auto: true });
+              addLog(`@${sp}@ (время вышло) раскрыл(а) «${L.traitLabel(k)}»: ${value}`, { type: 'reveal', who: nameOf(sp), key: k, label: L.traitLabel(k), value, desc: cardDesc(sp, k), auto: true });
             }
           }
         }
@@ -372,7 +403,7 @@ async function revealMine(key) {
     [`revealedRound/${me.id}`]: increment(1),
   });
   const value = state.cards[me.id].traits[key];
-  addLog(`@${me.id}@ раскрыл(а) «${L.traitLabel(key)}»: ${value}`, { type: 'reveal', actor: me.id, who: me.name, label: L.traitLabel(key), value });
+  addLog(`@${me.id}@ раскрыл(а) «${L.traitLabel(key)}»: ${value}`, { type: 'reveal', actor: me.id, who: me.name, key, label: L.traitLabel(key), value, desc: cardDesc(me.id, key) });
 }
 
 async function vote(target) {
@@ -449,7 +480,7 @@ async function useAction(i, target) {
       if (!k) return toast('У этого игрока уже всё раскрыто', 'warn');
       upd[`game/revealed/${target}/${k}`] = true;
       msg += `: у @${target}@ раскрыто «${L.traitLabel(k)}» — ${cards[target].traits[k]}`;
-      revealExtra = { type: 'reveal', actor: me.id, who: nameOf(target), label: L.traitLabel(k), value: cards[target].traits[k] };
+      revealExtra = { type: 'reveal', actor: me.id, who: nameOf(target), key: k, label: L.traitLabel(k), value: cards[target].traits[k], desc: cardDesc(target, k) };
       break;
     }
     case 'set_target':
@@ -511,7 +542,7 @@ async function adminReveal(pid) {
   if (!key) return;
   await set(R(`game/revealed/${pid}/${key}`), true);
   const value = state.cards[pid].traits[key];
-  addLog(`Хост раскрыл у @${pid}@ «${L.traitLabel(key)}»: ${value}`, { type: 'reveal', actor: me.id, who: nameOf(pid), label: L.traitLabel(key), value });
+  addLog(`Хост раскрыл у @${pid}@ «${L.traitLabel(key)}»: ${value}`, { type: 'reveal', actor: me.id, who: nameOf(pid), key, label: L.traitLabel(key), value, desc: cardDesc(pid, key) });
 }
 async function adminReroll(pid) {
   const key = document.getElementById('adm-key-' + pid)?.value;
@@ -590,6 +621,7 @@ function setHTML(html) {
   if (active) document.getElementById(active)?.focus();
 }
 function render() {
+  if (drag) { drag.pending = true; return; }
   try {
     if (!state) renderHome();
     else if (state.meta?.status === 'lobby') renderLobby();
@@ -617,6 +649,22 @@ function renderHome() {
   </div>`);
 }
 
+function lobbyRows(ps, s, host) {
+  let n = 0;
+  return ps.map(([id, p]) => {
+    const plays = s.hostPlays || id !== state.meta.hostId;
+    return `
+        <li data-pid="${id}">
+          ${host ? '<span class="grip" aria-label="Перетащить">⠿</span>' : ''}
+          <span class="seat">${plays ? ++n : '–'}</span>
+          <span class="dot ${p.online ? 'on' : ''}"></span>
+          <span class="pname">${esc(p.name)}${id === me.id ? ' <span class="muted">(вы)</span>' : ''}</span>
+          ${id === state.meta.hostId ? `<span class="tag">${plays ? 'хост' : 'хост, не играет'}</span>` : ''}
+          ${host && id !== me.id ? `<button class="link" data-a="kickLobby" data-pid="${id}">убрать</button>` : ''}
+        </li>`;
+  }).join('');
+}
+
 function lobbyPlayers(s) {
   return validPlayers().filter(([id]) => s.hostPlays || id !== state.meta.hostId);
 }
@@ -641,14 +689,9 @@ function renderLobby() {
       <button class="btn small" data-a="copy">Ссылка</button>
     </div>
     <h2>Игроки · ${ps.length}</h2>
-    <ul class="plist">
-      ${ps.map(([id, p]) => `
-        <li>
-          <span class="dot ${p.online ? 'on' : ''}"></span>
-          <span class="pname">${esc(p.name)}${id === me.id ? ' <span class="muted">(вы)</span>' : ''}</span>
-          ${id === state.meta.hostId ? '<span class="tag">хост</span>' : ''}
-          ${host && id !== me.id ? `<button class="link" data-a="kickLobby" data-pid="${id}">убрать</button>` : ''}
-        </li>`).join('')}
+    <p class="muted small">Ходят по кругу сверху вниз.${host ? ' Перетаскивайте игроков за ⠿, чтобы поменять порядок.' : ''}</p>
+    <ul class="plist ${host ? 'sortable' : ''}" id="seat-list">
+      ${lobbyRows(ps, s, host)}
     </ul>
     <h2>Настройки</h2>
     <p class="muted small">Играют: ${playing}. Мест в бункере: ${s.slots > 0 ? Math.min(s.slots, Math.max(1, playing - 1)) : autoSlots}${s.slots > 0 ? '' : ' (авто)'}</p>
@@ -716,12 +759,22 @@ function traitRows(pid, g, { mine = false } = {}) {
   const card = state.cards?.[pid];
   if (!card) return '';
   const rev = g.revealed[pid] || {};
-  return L.TRAITS.map(t => {
+  const tiles = L.TRAITS.map(t => {
     const open = !!rev[t.key];
     if (!mine && !open) return '';
-    const btn = mine && !open && L.canReveal(g, pid, t.key) ? `<button class="btn small" data-a="reveal" data-key="${t.key}">Раскрыть</button>` : '';
-    return `<div class="trait ${open ? 'open' : ''}"><div class="tl">${t.label}${mine ? (open ? ' <span class="tag ok">открыто</span>' : ' <span class="tag">скрыто</span>') : ''}</div><div class="tv">${esc(card.traits[t.key])}</div>${btn}</div>`;
+    const m = TMETA[t.key] || {};
+    const desc = cardDesc(pid, t.key);
+    const btn = mine && !open && L.canReveal(g, pid, t.key) ? `<button class="btn small tc-btn" data-a="reveal" data-key="${t.key}">Раскрыть</button>` : '';
+    const chip = mine ? (open ? '<span class="tc-chip on" title="Открыто всем">👁</span>' : '<span class="tc-chip" title="Видите только вы">🔒</span>') : '';
+    return `<div class="tcard ${open ? 'open' : 'closed'}" style="--tc:${m.color}">
+      <div class="tc-head"><span class="tc-ico">${m.icon}</span><span class="tc-label">${t.label}</span>${chip}</div>
+      <div class="tc-val">${esc(card.traits[t.key])}</div>
+      ${desc ? `<div class="tc-desc">${esc(desc)}</div>` : ''}
+      ${btn}
+    </div>`;
   }).join('');
+  const hint = mine ? '<div class="tgrid-hint">🔒 видите только вы · 👁 открыто всем</div>' : '';
+  return tiles ? `${hint}<div class="tgrid ${mine ? 'mine' : ''}">${tiles}</div>` : '';
 }
 
 function renderGame() {
@@ -764,7 +817,7 @@ function tabMe(g, playing) {
     ${alive ? '' : '<div class="err">Вы изгнаны из бункера. Можно наблюдать и обсуждать.</div>'}
     ${g.effects.immune[me.id] === g.round ? '<div class="tag ok">Иммунитет в этом раунде</div>' : ''}
     ${g.effects.double[me.id] === g.round ? '<div class="tag ok">Двойной голос в этом раунде</div>' : ''}
-    <div class="card">${traitRows(me.id, g, { mine: true })}</div>
+    ${traitRows(me.id, g, { mine: true })}
     ${acts.length ? `<h3>Карты действий</h3>
       <div class="acts">${acts.map((a, i) => `
         <div class="act ${a.used ? 'used' : ''}">
@@ -834,6 +887,11 @@ function tabPlayers(g) {
   }).join('')}</div>`;
 }
 
+function featureItem(f) {
+  const d = featureDesc(f);
+  return `<span class="feat-name">${esc(f)}</span>${d ? `<span class="feat-desc">${esc(d)}</span>` : ''}`;
+}
+
 function tabBunker(g) {
   const c = g.catastrophe || {};
   const f = g.bunker.features;
@@ -841,7 +899,7 @@ function tabBunker(g) {
     <div class="card"><div class="tl">Катастрофа</div><h3>${esc(c.title)}</h3><p>${esc(c.text)}</p><p class="muted">Нужно продержаться: <b>${esc(c.duration)}</b></p></div>
     <div class="card"><div class="tl">Бункер</div>
       <p>Площадь: <b>${g.bunker.size} м²</b> · Мест: <b>${g.slots}</b></p>
-      <ul class="feats">${f.map((x, i) => `<li>${i < g.bunker.shown ? esc(x) : '<span class="muted">??? (откроется позже)</span>'}</li>`).join('')}</ul>
+      <ul class="feats">${f.map((x, i) => `<li>${i < g.bunker.shown ? featureItem(x) : '<span class="muted">??? (откроется позже)</span>'}</li>`).join('')}</ul>
     </div>`;
 }
 
@@ -912,7 +970,7 @@ function renderEnd() {
     <div class="card story">${story.map(x => `<p>${esc(x)}</p>`).join('')}</div>
     <h2>Выжившие · ${surv.length}</h2><div class="players">${block(surv)}</div>
     <h2>Остались снаружи · ${out.length}</h2><div class="players">${block(out)}</div>
-    <div class="card"><div class="tl">Бункер</div><ul class="feats">${g.bunker.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul></div>
+    <div class="card"><div class="tl">Бункер</div><ul class="feats">${g.bunker.features.map(f => `<li>${featureItem(f)}</li>`).join('')}</ul></div>
     <div class="actions-row">
       ${isHost() ? '<button class="btn primary" data-a="toLobbyNoConfirm">Новая игра (в лобби)</button>' : '<p class="muted center">Хост может начать новую игру.</p>'}
       <button class="btn ghost" data-a="leave">Выйти</button>
@@ -975,6 +1033,61 @@ $app.addEventListener('click', async e => {
     toast('Ошибка: ' + (err.message || err), 'warn');
   }
 });
+
+// ---------- Перетаскивание игроков в лобби ----------
+let drag = null;
+$app.addEventListener('pointerdown', e => {
+  const grip = e.target.closest('.grip');
+  if (!grip || !isHost()) return;
+  const li = grip.closest('li');
+  e.preventDefault();
+  try { grip.setPointerCapture(e.pointerId); } catch {}
+  drag = { li, list: li.parentElement, from: [...li.parentElement.children].indexOf(li), pending: false };
+  li.classList.add('dragging');
+  document.body.classList.add('no-select');
+});
+$app.addEventListener('pointermove', e => {
+  if (!drag) return;
+  e.preventDefault();
+  const y = e.clientY;
+  const items = [...drag.list.children].filter(x => x !== drag.li);
+  let before = null;
+  for (const it of items) {
+    const r = it.getBoundingClientRect();
+    if (y < r.top + r.height / 2) { before = it; break; }
+  }
+  if (before !== drag.li.nextElementSibling || (!before && drag.li !== drag.list.lastElementChild)) {
+    drag.list.insertBefore(drag.li, before);
+    renumberSeats(drag.list);
+  }
+});
+async function endDrag() {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  d.li.classList.remove('dragging');
+  document.body.classList.remove('no-select');
+  const ids = [...d.list.children].map(x => x.dataset.pid);
+  const changed = ids.indexOf(d.li.dataset.pid) !== d.from;
+  if (changed && roomCode) {
+    const upd = {};
+    ids.forEach((id, i) => { upd[`players/${id}/seat`] = i; });
+    lastHTML = '';
+    try { await update(R(''), upd); } catch (err) { toast('Ошибка: ' + err.message, 'warn'); }
+  }
+  render();
+}
+$app.addEventListener('pointerup', endDrag);
+$app.addEventListener('pointercancel', endDrag);
+function renumberSeats(list) {
+  const s = { ...L.DEFAULT_SETTINGS, ...state.settings };
+  let n = 0;
+  [...list.children].forEach(li => {
+    const plays = s.hostPlays || li.dataset.pid !== state.meta.hostId;
+    const el = li.querySelector('.seat');
+    if (el) el.textContent = plays ? ++n : '–';
+  });
+}
 
 $app.addEventListener('change', e => {
   const el = e.target.closest('[data-set]');
