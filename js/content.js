@@ -1,5 +1,5 @@
 // Загрузка контента из content/*.json и свои наборы карточек для лобби
-import { readZip } from './zip.js?v=2.2';
+import { readZip } from './zip.js?v=2.3';
 
 export const FILES = ['conditions', 'professions', 'biology', 'health', 'hobbies', 'phobias', 'baggage', 'facts', 'characters', 'catastrophes', 'bunkers', 'actions'];
 export const FILE_LABELS = {

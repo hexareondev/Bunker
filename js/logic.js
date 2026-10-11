@@ -137,7 +137,7 @@ export function newGame(playerIdsIn, content, settings, now) {
   const cat = pick(pool(content, 'catastrophes', s));
   const featItems = shuffle(pool(content, 'bunkers', s)).slice(0, Math.max(1, +s.bunkerFeatures || 5));
   const features = featItems.map(textOf);
-  const featureFood = featItems.map(x => (x && x.foodMonths) || 0);
+  const featureFood = featItems.map(x => (x && x.foodInfinite ? 'inf' : (x && x.foodMonths) || 0));
   const condItem = (content.conditions || []).length ? pick(pool(content, 'conditions', s)) : null;
 
   const game = {
@@ -249,13 +249,20 @@ export function foodInfo(g) {
   const b = g.bunker || {};
   const ff = b.featureFood || [];
   let months = +b.food || 0;
-  for (let i = 0; i < (b.shown || 0); i++) months += +ff[i] || 0;
+  let infinite = !!b.foodInfinite;
+  for (let i = 0; i < (b.shown || 0); i++) {
+    if (ff[i] === 'inf') infinite = true;
+    else months += +ff[i] || 0;
+  }
   months = Math.max(0, months);
   const need = +(g.catastrophe || {}).months || 0;
+  // бесконечный источник еды перекрывает любую нужду
+  if (infinite) return { months: Infinity, need, status: 'ok', has: true, infinite: true };
   const status = !need ? 'unknown' : months >= need ? 'ok' : 'short';
-  return { months, need, status, has: b.food !== undefined };
+  return { months, need, status, has: b.food !== undefined, infinite: false };
 }
 export function monthsText(m, short = false) {
+  if (m === Infinity) return short ? '∞' : 'бесконечно';
   const y = Math.floor(m / 12), r = m % 12;
   const ys = y ? (short ? `${y} г.` : `${y} ${yearsWord(y)}`) : '';
   const ms = r ? (short ? `${r} мес.` : `${r} ${plural(r, 'месяц', 'месяца', 'месяцев')}`) : '';
@@ -411,7 +418,8 @@ export function makeStory(g, cards, names, foodScore = {}) {
   const fi = foodInfo(g);
   if (fi.has && surv.length) {
     const feeders = surv.filter(p => (foodScore[p] || 0) > 0).map(nm);
-    if (fi.status === 'ok') out.push(`Еды хватило с запасом: её было на ${monthsText(fi.months)}.`);
+    if (fi.infinite) out.push('Голод выжившим не грозил: в бункере был неиссякаемый источник пищи.');
+    else if (fi.status === 'ok') out.push(`Еды хватило с запасом: её было на ${monthsText(fi.months)}.`);
     else if (fi.status === 'short' && feeders.length) out.push(`Еды хватило лишь на ${monthsText(fi.months)}, но ${feeders.join(', ')} ${feeders.length > 1 ? 'смогли' : 'смог(ла)'} наладить добычу пищи — от голода никто не умер.`);
     else if (fi.status === 'short') out.push(`Еды хватило лишь на ${monthsText(fi.months)}. Добывать пищу никто не умел — последние месяцы выжившие провели впроголодь, и не все их пережили.`);
     else out.push(`Запаса еды хватало на ${monthsText(fi.months)}${feeders.length ? `, а ${feeders.join(', ')} умели добывать пищу` : ''}.`);

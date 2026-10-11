@@ -70,3 +70,30 @@
 .pick-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--line); font-size: .88rem; color: var(--text); cursor: pointer; }
 .pick-row:last-child { border-bottom: 0; }
 .pick-row input { width: 18px; height: 18px; flex: none; accent-color: #7a5af8; }
+
+/* ---------- Меню разделов ---------- */
+.ed-head { display: flex; gap: 8px; align-items: stretch; margin-bottom: 10px; position: relative; }
+.ed-menu-btn { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; cursor: pointer; }
+.ed-menu-btn.open { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.ed-menu-ico { font-size: 1.3rem; line-height: 1; flex: none; }
+.ed-menu-txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.ed-menu-txt b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ed-menu-cap { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.ed-chev { color: var(--muted); transition: transform .15s; }
+.ed-menu-btn.open .ed-chev { transform: rotate(180deg); }
+.ed-open { flex: none; display: inline-flex; align-items: center; cursor: pointer; white-space: nowrap; }
+.ed-menu { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px; margin: -2px 0 12px; box-shadow: 0 12px 32px rgba(0,0,0,.15); display: flex; flex-direction: column; gap: 10px; animation: dlgIn .15s ease-out; }
+.ed-menu-title { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 4px 6px; }
+.ed-menu-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 6px; }
+.ed-menu-item { display: flex; align-items: center; gap: 8px; font: inherit; font-size: .9rem; font-weight: 600; color: var(--text); text-align: left; background: var(--bg); border: 1px solid var(--line); border-left: 4px solid var(--tc, var(--line)); border-radius: 10px; padding: 9px 10px; cursor: pointer; }
+.ed-menu-item.active { border-color: var(--text); border-left-color: var(--tc, var(--text)); background: var(--surface); box-shadow: inset 0 0 0 1px var(--text); }
+.ed-menu-item .ed-menu-ico { font-size: 1.05rem; }
+.ed-menu-name { flex: 1 1 auto; min-width: 0; }
+.ed-menu-item .ed-count, .ed-menu-btn .ed-count { font-size: .72rem; font-weight: 700; color: var(--muted); }
+
+/* ---------- ID карты ---------- */
+.ed-id-row { display: flex; gap: 6px; align-items: center; }
+.ed-id-row input { flex: 1 1 auto; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; }
+.ed-id-row .btn { flex: none; white-space: nowrap; }
+.ed-id-msg { font-size: .75rem; color: var(--ok); }
+.ed-id-msg.bad { color: var(--bad); font-weight: 600; }

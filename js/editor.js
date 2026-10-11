@@ -1,5 +1,5 @@
-import { makeZip, downloadBlob, readZip } from './zip.js?v=2.2';
-import * as E from './effects.js?v=2.2';
+import { makeZip, downloadBlob, readZip } from './zip.js?v=2.3';
+import * as E from './effects.js?v=2.3';
 
 // ---------------- Описание разделов ----------------
 const FOOD = { t: 'select', opts: [['0', 'нет'], ['1', '🍖 помогает с едой'], ['-1', '🍖 −еда (нужно больше еды)']], num: true };
@@ -27,7 +27,8 @@ const SECTIONS = [
     { k: 'text', l: 'Особенность', t: 'text', req: true },
     { k: 'desc', l: 'Описание', t: 'area' },
     { k: 'food', l: 'Связь с едой', ...FOOD },
-    { k: 'foodMonths', l: 'Меняет запас еды, месяцев (например 12 или -2)', t: 'num' },
+    { k: 'foodInfinite', l: '🍖 Бесконечная еда — перекрывает любую нужду в еде', t: 'check', re: true },
+    { k: 'foodMonths', l: 'Меняет запас еды, месяцев (например 12 или -2)', t: 'num', showItem: x => !x.foodInfinite },
     { k: 'dark', l: 'Чёрный юмор', t: 'check' },
   ] },
   { f: 'professions', label: 'Профессии', icon: '💼', color: '#3b82f6', hint: 'Стаж добавляется в игре автоматически.', fields: TRAIT_FIELDS },
@@ -53,8 +54,9 @@ const SECTIONS = [
     { k: 'effect.pool.items', l: 'Значения пула — отметьте из имеющихся', t: 'pick', show: ef => E.usesPool(ef) && ef.pool.source === 'preset' },
     { k: 'effect.pool.size', l: 'Сколько случайных вариантов набрать в пул', t: 'num', re: true, show: ef => E.usesPool(ef) && ef.pool.source === 'random' && ef.op !== 'remove' },
     { k: 'effect.value', l: 'Значение', t: 'text', re: true, list: true, show: ef => E.hasModes(ef) && ef.mode === 'fixed' },
-    { k: 'effect.amount', l: 'Сколько (мест или месяцев еды)', t: 'num', re: true, show: E.isNumeric },
-    { k: 'id', l: 'ID (латиницей, уникальный)', t: 'text', short: true, req: true },
+    { k: 'effect.infinite', l: '🍖 Бесконечно — еды хватит на любой срок', t: 'check', re: true, show: ef => ef.type === 'change' && ef.object === 'food' && ef.op !== 'remove' },
+    { k: 'effect.amount', l: 'Сколько (мест или месяцев еды)', t: 'num', re: true, show: ef => E.isNumeric(ef) && !ef.infinite },
+    { k: 'id', l: 'ID (латиницей, уникальный)', t: 'id', req: true },
     { k: 'dark', l: 'Чёрный юмор', t: 'check' },
   ] },
 ];
@@ -88,6 +90,8 @@ function clean(item) {
   const x = JSON.parse(JSON.stringify(item));
   if ('desc' in x && !String(x.desc || '').trim()) delete x.desc;
   if ('food' in x && !Number(x.food)) delete x.food;
+  if ('foodInfinite' in x && !x.foodInfinite) delete x.foodInfinite;
+  if (x.foodInfinite) delete x.foodMonths;
   if ('foodMonths' in x && !Number(x.foodMonths)) delete x.foodMonths;
   if ('months' in x && (x.months === '' || x.months === undefined)) x.months = null;
   if ('icon' in x && !x.icon) delete x.icon;
@@ -116,12 +120,14 @@ function cleanEffect(raw) {
     }
   }
   if (!E.isNumeric(e)) delete e.amount;
+  if (e.object !== 'food' || e.op === 'remove' || !e.infinite) delete e.infinite;
+  if (e.infinite) delete e.amount;
   return e;
 }
 
 function newItem(f) {
   if (f === 'catastrophes') return { title: '', text: '', duration: '', months: null, dark: false };
-  if (f === 'actions') return { id: 'custom_' + Date.now().toString(36), icon: '🃏', title: '', text: '', effect: { type: 'change', op: 'replace', object: 'trait', key: 'random', target: 'self', mode: 'random' }, dark: false };
+  if (f === 'actions') return { id: uniqueId('card_' + Math.random().toString(36).slice(2, 6), -1), icon: '🃏', title: '', text: '', effect: { type: 'change', op: 'replace', object: 'trait', key: 'random', target: 'self', mode: 'random' }, dark: false };
   return { text: '', dark: false };
 }
 
@@ -175,8 +181,16 @@ function render() {
     <p class="ed-note">Меняйте катастрофы, бункер, характеристики и карты действий. Черновик сохраняется в этом браузере.
     Чтобы изменения попали в игру, нажмите <b>«Скачать архив»</b> и распакуйте его в корень репозитория с заменой файлов.</p>
 
-    <nav class="ed-secs">${SECTIONS.map(s => `<button class="${s.f === cur ? 'active' : ''}" data-a="sec" data-f="${s.f}">
-      <span>${s.icon}</span>${s.label}<span class="ed-count">${(data[s.f] || []).length}</span>${ch.includes(s.f) ? '<span class="ed-dot" title="Есть изменения"></span>' : ''}</button>`).join('')}</nav>
+    <div class="ed-head">
+      <button class="ed-menu-btn ${menuOpen ? 'open' : ''}" data-a="menu" aria-expanded="${menuOpen}">
+        <span class="ed-menu-ico">${sec.icon}</span>
+        <span class="ed-menu-txt"><span class="ed-menu-cap">Раздел</span><b>${esc(sec.label)}</b></span>
+        <span class="ed-count">${arr.length}</span>
+        <span class="ed-chev">▾</span>
+      </button>
+      <label class="btn small ed-file ed-open" title="Открыть архив набора (.zip)">📂 Архив<input type="file" accept=".zip,application/zip" id="ed-import-zip" hidden></label>
+    </div>
+    ${menuOpen ? menuHtml(ch) : ''}
 
     <div class="ed-bar">
       <input id="ed-q" type="search" placeholder="Поиск в разделе «${esc(sec.label)}»" value="${esc(query)}">
@@ -191,7 +205,6 @@ function render() {
     <div class="ed-row ed-more">
       <button class="btn small ghost" data-a="json">Скачать «${esc(sec.label)}» (.json)</button>
       <label class="btn small ghost ed-file">Загрузить .json в раздел<input type="file" accept=".json,application/json" id="ed-import" hidden></label>
-      <label class="btn small ghost ed-file">Открыть архив набора (.zip)<input type="file" accept=".zip,application/zip" id="ed-import-zip" hidden></label>
       <button class="btn small ghost" data-a="resetSec">Сбросить раздел</button>
       <button class="btn small ghost" data-a="resetAll">Сбросить всё</button>
     </div>
@@ -202,12 +215,30 @@ function render() {
   <div class="ed-toast" id="ed-toast"></div>`;
 }
 
+const GROUPS = [
+  ['Мир и бункер', ['catastrophes', 'conditions', 'bunkers']],
+  ['Характеристики игроков', ['professions', 'biology', 'health', 'hobbies', 'phobias', 'baggage', 'facts', 'characters']],
+  ['Карты', ['actions']],
+];
+let menuOpen = false;
+function menuHtml(ch) {
+  return `<div class="ed-menu">${GROUPS.map(([title, fs]) => `
+    <div class="ed-menu-group"><div class="ed-menu-title">${title}</div>
+      <div class="ed-menu-items">${fs.map(f => { const s = SEC[f]; return `
+        <button class="ed-menu-item ${f === cur ? 'active' : ''}" data-a="sec" data-f="${f}" style="${s.color ? `--tc:${s.color}` : ''}">
+          <span class="ed-menu-ico">${s.icon}</span><span class="ed-menu-name">${s.label}</span>
+          <span class="ed-count">${(data[f] || []).length}</span>${ch.includes(f) ? '<span class="ed-dot" title="Есть изменения"></span>' : ''}
+        </button>`; }).join('')}</div>
+    </div>`).join('')}</div>`;
+}
+
 function badges(sec, x) {
   const b = [];
   if (x.dark) b.push('<span class="ed-b dark">чёрный юмор</span>');
   if (Number(x.food) > 0) b.push('<span class="ed-b food">🍖 еда</span>');
   if (Number(x.food) < 0) b.push('<span class="ed-b nofood">🍖 −еда</span>');
-  if (Number(x.foodMonths)) b.push(`<span class="ed-b food">${x.foodMonths > 0 ? '+' : ''}${x.foodMonths} мес.</span>`);
+  if (x.foodInfinite) b.push('<span class="ed-b food">🍖 ∞ еда</span>');
+  else if (Number(x.foodMonths)) b.push(`<span class="ed-b food">${x.foodMonths > 0 ? '+' : ''}${x.foodMonths} мес.</span>`);
   if (x.desc) b.push('<span class="ed-b">описание</span>');
   return b.join('');
 }
@@ -221,6 +252,7 @@ function summaryText(sec, x) {
 function fieldHtml(f, x, i) {
   const ef = E.normalizeEffect(x.effect || {});
   if (f.show && !f.show(ef)) return '';
+  if (f.showItem && !f.showItem(x)) return '';
   const v = getPath(x, f.k);
   const id = `f-${i}-${f.k.replace(/\./g, '_')}`;
   const attrs = `id="${id}" data-i="${i}" data-k="${f.k}"`;
@@ -228,6 +260,13 @@ function fieldHtml(f, x, i) {
   let input;
   const opts = typeof f.opts === 'function' ? f.opts(ef) : f.opts;
   const cur = f.k.startsWith('effect.') ? getPath({ effect: ef }, f.k) : v;
+  if (f.t === 'id') {
+    const dup = idDup(i);
+    return `<label class="field"><span>${f.l} <span class="req">*</span></span>
+      <span class="ed-id-row"><input type="text" ${attrs} value="${esc(v ?? '')}" spellcheck="false" autocomplete="off">
+      <button type="button" class="btn small ghost" data-a="regenId" data-i="${i}" title="Сгенерировать новый ID">↻ Новый</button></span>
+      <span class="ed-id-msg ${dup ? 'bad' : ''}" id="idmsg-${i}">${idMsg(i)}</span></label>`;
+  }
   if (f.t === 'area') input = `<textarea ${attrs} rows="2" placeholder="${esc(f.ph || '')}">${esc(v ?? '')}</textarea>`;
   else if (f.t === 'pick') return `<div class="field"><span>${f.l}</span>${pickerHtml(ef, i, cur || [])}</div>`;
   else if (f.t === 'select') input = `<select ${attrs}>${opts.map(([val, lab]) => `<option value="${esc(val)}" ${String(cur ?? (f.num ? '0' : '')) === String(val) ? 'selected' : ''}>${esc(lab)}</option>`).join('')}</select>`;
@@ -235,6 +274,39 @@ function fieldHtml(f, x, i) {
   else input = `<input type="text" ${attrs} value="${esc(cur ?? '')}" placeholder="${esc(f.ph || '')}" ${f.list ? `list="${listId(ef)}"` : ''}>${f.list ? suggestHtml(ef, true) : ''}`;
   const gen = f.gen ? ` <button type="button" class="ed-gen" data-a="gen" data-i="${i}">↻ взять из действия</button>` : '';
   return `<label class="field ${f.short ? 'short' : ''}"><span>${f.l}${f.req ? ' <span class="req">*</span>' : ''}${gen}</span>${input}</label>`;
+}
+
+// ID карт действий: латиница, уникальность, генерация
+const TR = { а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya' };
+function slug(t) {
+  return String(t || '').toLowerCase().split('').map(c => (c in TR ? TR[c] : c)).join('')
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24);
+}
+function idDup(i) {
+  const id = String(data.actions?.[i]?.id || '').trim();
+  return !!id && (data.actions || []).some((a, j) => j !== i && String(a.id || '').trim() === id);
+}
+function idMsg(i) {
+  const id = String(data.actions?.[i]?.id || '').trim();
+  if (!id) return '⚠ ID обязателен';
+  if (!/^[a-z0-9_]+$/i.test(id)) return '⚠ Только латиница, цифры и «_»';
+  if (idDup(i)) return '⚠ Такой ID уже есть у другой карты';
+  return '✓ ID уникален';
+}
+function uniqueId(base, i) {
+  const taken = new Set((data.actions || []).filter((_, j) => j !== i).map(a => a.id));
+  let id = base || 'card';
+  if (!taken.has(id)) return id;
+  for (let n = 2; n < 1000; n++) if (!taken.has(`${id}_${n}`)) return `${id}_${n}`;
+  return `${id}_${Date.now().toString(36)}`;
+}
+function refreshIdMsgs() {
+  if (cur !== 'actions') return;
+  document.querySelectorAll('[id^="idmsg-"]').forEach(el => {
+    const i = +el.id.slice(6);
+    el.textContent = idMsg(i);
+    el.classList.toggle('bad', idMsg(i).startsWith('⚠'));
+  });
 }
 
 // Выбор значений пула из уже имеющихся в разделе
@@ -305,7 +377,9 @@ function changedItem(f, i) {
 
 function updateCounters() {
   const ch = changedFiles();
-  document.querySelectorAll('.ed-secs button').forEach(b => {
+  const mc = document.querySelector('.ed-menu-btn .ed-count');
+  if (mc) mc.textContent = (data[cur] || []).length;
+  document.querySelectorAll('.ed-menu-item').forEach(b => {
     const f = b.dataset.f;
     const dot = b.querySelector('.ed-dot');
     if (ch.includes(f) && !dot) b.insertAdjacentHTML('beforeend', '<span class="ed-dot" title="Есть изменения"></span>');
@@ -348,6 +422,7 @@ function validate() {
   });
   const ids = (data.actions || []).map(a => a.id);
   const dup = ids.filter((id, i) => id && ids.indexOf(id) !== i);
+  (data.actions || []).forEach((a, i) => { if (a.id && !/^[a-z0-9_]+$/i.test(a.id)) issues.push(`Карты действий: «${a.title || '№' + (i + 1)}» — ID «${a.id}» содержит недопустимые символы`); });
   if (dup.length) issues.push(`Карты действий: повторяются ID — ${[...new Set(dup)].join(', ')}`);
   return issues;
 }
@@ -383,7 +458,8 @@ $ed.addEventListener('click', async e => {
   if (!b) return;
   const a = b.dataset.a;
   const i = +b.dataset.i;
-  if (a === 'sec') { cur = b.dataset.f; query = ''; render(); window.scrollTo(0, 0); }
+  if (a === 'menu') { menuOpen = !menuOpen; render(); }
+  else if (a === 'sec') { cur = b.dataset.f; query = ''; menuOpen = false; render(); window.scrollTo(0, 0); }
   else if (a === 'add') {
     data[cur].unshift(newItem(cur));
     opened = new Set([...opened].map(k => { const [f, n] = k.split(':'); return f === cur ? `${f}:${+n + 1}` : k; }));
@@ -393,7 +469,7 @@ $ed.addEventListener('click', async e => {
     document.querySelector('.ed-item[data-i="0"] input, .ed-item[data-i="0"] textarea')?.focus();
   } else if (a === 'dup') {
     const copy = JSON.parse(JSON.stringify(data[cur][i]));
-    if (cur === 'actions') copy.id = (copy.id || 'card') + '_copy' + Date.now().toString(36).slice(-3);
+    if (cur === 'actions') copy.id = uniqueId((copy.id || 'card') + '_copy', -1);
     data[cur].splice(i + 1, 0, copy);
     opened.add(`${cur}:${i + 1}`);
     render(); saveDraft();
@@ -407,6 +483,14 @@ $ed.addEventListener('click', async e => {
     opened = new Set();
     render(); saveDraft();
     toast('Запись удалена');
+  } else if (a === 'regenId') {
+    const item = data.actions[i];
+    item.id = uniqueId(slug(item.title) || 'card', i);
+    const inp = document.querySelector(`[data-i="${i}"][data-k="id"]`);
+    if (inp) inp.value = item.id;
+    refreshIdMsgs();
+    const det = b.closest('.ed-item'); if (det) det.classList.toggle('mod', changedItem(cur, i));
+    saveDraft();
   } else if (a === 'poolDel') {
     const items = (data[cur][i].effect.pool?.items || []).filter(v => v !== b.dataset.v);
     setPoolItems(i, items);
@@ -454,6 +538,7 @@ function onField(el, isChange = false) {
   else if (f && f.num) v = Number(el.value);
   else v = el.value;
   setPath(item, k, v);
+  if (k === 'id') refreshIdMsgs();
   if (k.startsWith('effect.')) {
     E.fixDefaults(item.effect);
     // значения пула должны существовать в выбранном разделе
@@ -470,7 +555,7 @@ function onField(el, isChange = false) {
     det.querySelector('.ed-badges').innerHTML = badges(sec, item);
     det.classList.toggle('mod', changedItem(cur, i));
     // поля, от которых зависят другие, перерисовывают карточку (для текста — по завершении ввода)
-    if (f && f.re && (el.tagName === 'SELECT' || isChange)) rerenderItem(det, i);
+    if (f && f.re && (el.tagName === 'SELECT' || el.type === 'checkbox' || isChange)) rerenderItem(det, i);
     else if (sec.f === 'actions') { const pv = det.querySelector('.ed-preview'); if (pv) pv.outerHTML = previewHtml(item); }
   }
   saveDraft();
@@ -552,6 +637,11 @@ $ed.addEventListener('change', async e => {
       toast(`Загружено записей: ${arr.length}`);
     } catch (err) { toast('Не удалось прочитать файл: ' + err.message); }
   }
+});
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && menuOpen) { menuOpen = false; render(); } });
+document.addEventListener('click', e => {
+  if (menuOpen && !e.target.closest('.ed-menu') && !e.target.closest('.ed-menu-btn')) { menuOpen = false; render(); }
 });
 
 window.addEventListener('beforeunload', () => {

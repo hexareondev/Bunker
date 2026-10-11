@@ -77,6 +77,7 @@ export function normalizeEffect(e) {
       }
     }
     if (e.object === 'slots' || e.object === 'food') e.amount = Math.max(0, +e.amount || 1);
+    if (e.object !== 'food' || e.op === 'remove') delete e.infinite;
   }
   return e;
 }
@@ -120,6 +121,7 @@ export function describeEffect(raw) {
   }
   const places = n => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'место' : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? 'места' : 'мест'}`;
   if (e.object === 'slots') return { add: `+${places(e.amount)} в бункере.`, remove: `−${places(e.amount)} в бункере (минимум 1 останется).`, replace: `В бункере становится ${places(e.amount)}.` }[e.op];
+  if (e.object === 'food' && e.infinite) return 'Запас еды становится бесконечным — голод больше не грозит.';
   if (e.object === 'food') return { add: `+${months(e.amount)} запаса еды в бункере.`, remove: `−${months(e.amount)} запаса еды в бункере.`, replace: `Запас еды становится ${months(e.amount)}.` }[e.op];
 
   const who = { self: 'себе', player: 'выбранному игроку', all: 'всем игрокам', random_player: 'случайному игроку' }[e.target] || '';
@@ -156,7 +158,7 @@ export function effectIssues(raw) {
   if (e.type === 'change') {
     if (hasModes(e) && e.mode === 'fixed' && !String(e.value || '').trim()) out.push('не задано значение');
     if (usesPool(e) && e.pool.source === 'preset' && !e.pool.items.filter(Boolean).length) out.push('пул пуст');
-    if (isNumeric(e) && !(+e.amount > 0)) out.push('количество должно быть больше 0');
+    if (isNumeric(e) && !e.infinite && !(+e.amount > 0)) out.push('количество должно быть больше 0');
   }
   return out;
 }

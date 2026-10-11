@@ -5,9 +5,9 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=2.2';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=2.2';
-import * as E from './effects.js?v=2.2';
+import * as L from './logic.js?v=2.3';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=2.3';
+import * as E from './effects.js?v=2.3';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -204,12 +204,13 @@ function notifyEntry(e) {
     const fd = featureDesc(e.feature);
     const parts = [];
     if (e.condition) parts.push(`Состояние: ${e.condition}.`);
-    if (e.food) parts.push(`Еды на ${L.monthsText(e.food)}${e.need ? (e.food >= e.need ? ' — хватит.' : ` — не хватит, нужно ${L.monthsText(e.need)}.`) : '.'}`);
+    if (e.food === -1) parts.push('Еды бесконечно — голод не грозит.');
+    else if (e.food) parts.push(`Еды на ${L.monthsText(e.food)}${e.need ? (e.food >= e.need ? ' — хватит.' : ` — не хватит, нужно ${L.monthsText(e.need)}.`) : '.'}`);
     if (e.feature) parts.push(`В бункере есть: ${e.feature}${fd ? '. ' + fd : ''}`);
     showPopup({ cls: 'info', top: 'Ваш бункер', value: `${e.size} м² · мест: ${e.slots}`, sub: parts.join(' '), long: true });
   } else if (e.type === 'bunker') {
-    const fm = +((itemIn('bunkers', e.feature) || {}).foodMonths || 0);
-    const sub = [featureDesc(e.feature), fm ? `🍖 Еда: ${fm > 0 ? '+' : '−'}${L.monthsText(Math.abs(fm))}` : ''].filter(Boolean).join(' ');
+    const fm = featureFoodMonths(e.feature);
+    const sub = [featureDesc(e.feature), fm === 'inf' ? '🍖 Еда: бесконечно' : fm ? `🍖 Еда: ${fm > 0 ? '+' : '−'}${L.monthsText(Math.abs(fm))}` : ''].filter(Boolean).join(' ');
     showPopup({ cls: 'info', top: e.round ? `Раунд ${e.round}` : 'Бункер', label: 'Открыта особенность бункера', value: e.feature, sub });
   }
   else if (e.type === 'vote' || e.type === 'presence') { if (e.actor !== me.id) toast(e.text, 'small'); }
@@ -350,7 +351,7 @@ async function startGame() {
   addLog(game.event, {
     type: 'start', title: game.catastrophe.title, catText: game.catastrophe.text, duration: game.catastrophe.duration,
     size: game.bunker.size, slots: game.slots, feature: game.bunker.features[0] || '',
-    condition: game.bunker.condition?.text || '', food: L.foodInfo(game).months, need: game.catastrophe.months || 0,
+    condition: game.bunker.condition?.text || '', food: L.foodInfo(game).infinite ? -1 : L.foodInfo(game).months, need: game.catastrophe.months || 0,
   });
 }
 
@@ -479,7 +480,7 @@ function traitPartsOf(card, k) {
 }
 function gamePool(file, g) { return L.pool(content, file, g.settings).map(L.textOf); }
 function sample(arr, n) { return L.shuffle(arr).slice(0, n); }
-const featureFoodMonths = f => +((itemIn('bunkers', f) || {}).foodMonths || 0);
+const featureFoodMonths = f => { const it = itemIn('bunkers', f) || {}; return it.foodInfinite ? 'inf' : +(it.foodMonths || 0); };
 
 // Ключ характеристики для действия (случайный выбирается один раз)
 function resolveKey(e) { return e.key && e.key !== 'random' ? e.key : L.pick(L.TRAIT_KEYS); }
@@ -520,6 +521,11 @@ function applyChange(e, g, ctx, upd) {
     const n = e.op === 'add' ? g.slots + e.amount : e.op === 'remove' ? Math.max(1, g.slots - e.amount) : Math.max(1, e.amount);
     upd['game/slots'] = n;
     out.push(`мест в бункере теперь ${n}`);
+    return { out, popup };
+  }
+  if (e.object === 'food' && e.infinite) {
+    upd['game/bunker/foodInfinite'] = true;
+    out.push('еды теперь бесконечно много');
     return { out, popup };
   }
   if (e.object === 'food') {
@@ -1138,16 +1144,18 @@ function tabPlayers(g) {
 
 function featureItem(f) {
   const d = featureDesc(f);
-  return `<span class="feat-name">${esc(f)}${foodTag(featureFood(f))}</span>${d ? `<span class="feat-desc">${esc(d)}</span>` : ''}`;
+  const inf = featureFoodMonths(f) === 'inf' ? '<span class="food-tag plus">🍖 ∞</span>' : foodTag(featureFood(f));
+  return `<span class="feat-name">${esc(f)}${inf}</span>${d ? `<span class="feat-desc">${esc(d)}</span>` : ''}`;
 }
 function foodLine(g) {
   const fi = L.foodInfo(g);
   if (!fi.has) return '';
-  return ` · Еда: <b>на ${L.monthsText(fi.months)}</b>`;
+  return fi.infinite ? ' · Еда: <b>бесконечно</b>' : ` · Еда: <b>на ${L.monthsText(fi.months)}</b>`;
 }
 function foodNote(g) {
   const fi = L.foodInfo(g);
   if (!fi.has) return '';
+  if (fi.infinite) return '<div class="food-note ok">🍖 В бункере неиссякаемый источник еды — голод не грозит, сколько бы ни пришлось сидеть.</div>';
   if (fi.status === 'ok') return `<div class="food-note ok">🍖 Еды хватит на весь срок (${L.monthsText(fi.need)}).</div>`;
   if (fi.status === 'unknown') return `<div class="food-note">🍖 Сколько сидеть в бункере — неизвестно. Умения добывать еду пригодятся.</div>`;
   return `<div class="food-note short">🍖 Еды не хватит: нужно ${L.monthsText(fi.need)}, есть на ${L.monthsText(fi.months)}. Особенно ценны те, кто умеет добывать пищу — их характеристики помечены 🍖.</div>`;
