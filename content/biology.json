@@ -73,15 +73,24 @@
  },
  {
   "text": "Женщина, беременна (3-й месяц)",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "reproduction": 2
+  }
  },
  {
   "text": "Мужчина, отец пятерых детей",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "reproduction": 1
+  }
  },
  {
   "text": "Женщина, мать троих детей",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "reproduction": 1
+  }
  },
  {
   "text": "Мужчина, чайлдфри",
@@ -93,15 +102,24 @@
  },
  {
   "text": "Мужчина, очень хорошая наследственность",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "reproduction": 1
+  }
  },
  {
   "text": "Женщина, близнецы в роду",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "reproduction": 1
+  }
  },
  {
   "text": "Мужчина, донор спермы со стажем",
-  "dark": true
+  "dark": true,
+  "needs": {
+   "reproduction": 1
+  }
  },
  {
   "text": "Женщина, четыре бывших мужа (все пропали без вести)",

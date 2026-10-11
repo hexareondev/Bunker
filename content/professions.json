@@ -1,139 +1,294 @@
 [
  {
   "text": "Хирург",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "medicine": 2
+  },
+  "solves": [
+   "infection"
+  ]
  },
  {
   "text": "Терапевт",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "medicine": 2
+  },
+  "solves": [
+   "infection"
+  ]
  },
  {
   "text": "Медсестра",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "medicine": 2
+  },
+  "solves": [
+   "infection"
+  ]
  },
  {
   "text": "Стоматолог",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "medicine": 1
+  }
  },
  {
   "text": "Ветеринар",
   "dark": false,
-  "food": 1
+  "needs": {
+   "medicine": 1,
+   "food": 1
+  },
+  "solves": [
+   "rodents"
+  ]
  },
  {
   "text": "Фармацевт",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "medicine": 2
+  },
+  "solves": [
+   "infection",
+   "poison"
+  ]
  },
  {
   "text": "Акушерка",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "medicine": 1,
+   "reproduction": 2
+  }
  },
  {
   "text": "Психотерапевт",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 2
+  },
+  "solves": [
+   "conflict",
+   "despair",
+   "cramped"
+  ]
  },
  {
   "text": "Инженер-электрик",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": 2
+  },
+  "solves": [
+   "breakdown",
+   "darkness"
+  ]
  },
  {
   "text": "Сантехник",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": 2
+  },
+  "solves": [
+   "breakdown",
+   "damp"
+  ]
  },
  {
   "text": "Строитель",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": 2
+  },
+  "solves": [
+   "breakdown",
+   "damp"
+  ]
  },
  {
   "text": "Архитектор",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": 1
+  }
  },
  {
   "text": "Агроном",
   "dark": false,
-  "food": 1
+  "needs": {
+   "food": 2
+  }
  },
  {
   "text": "Фермер",
   "dark": false,
-  "food": 1
+  "needs": {
+   "food": 2
+  }
  },
  {
   "text": "Повар",
   "dark": false,
-  "food": 1
+  "needs": {
+   "food": 1,
+   "morale": 1
+  }
  },
  {
   "text": "Пекарь",
   "dark": false,
-  "food": 1
+  "needs": {
+   "food": 1
+  }
  },
  {
   "text": "Учитель начальных классов",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1,
+   "reproduction": 1
+  }
  },
  {
   "text": "Химик",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "medicine": 1
+  },
+  "solves": [
+   "poison",
+   "roaches"
+  ]
  },
  {
   "text": "Биолог",
   "dark": false,
-  "food": 1
+  "needs": {
+   "medicine": 1,
+   "food": 1
+  }
  },
  {
   "text": "Физик-ядерщик",
-  "dark": false
+  "dark": false,
+  "solves": [
+   "radiation"
+  ]
  },
  {
   "text": "Военный",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "defense": 2
+  },
+  "solves": [
+   "outside"
+  ]
  },
  {
   "text": "Полицейский",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "defense": 2
+  },
+  "solves": [
+   "outside",
+   "conflict"
+  ]
  },
  {
   "text": "Пожарный",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "defense": 1,
+   "medicine": 1
+  }
  },
  {
   "text": "Программист",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": 1
+  }
  },
  {
   "text": "Системный администратор",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": 1
+  },
+  "solves": [
+   "darkness"
+  ]
  },
  {
   "text": "Автомеханик",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": 2
+  },
+  "solves": [
+   "breakdown"
+  ]
  },
  {
   "text": "Сварщик",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": 2
+  },
+  "solves": [
+   "breakdown"
+  ]
  },
  {
   "text": "Плотник",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": 1
+  },
+  "solves": [
+   "damp"
+  ]
  },
  {
   "text": "Швея",
-  "dark": false
+  "dark": false,
+  "solves": [
+   "cold"
+  ]
  },
  {
   "text": "Охотник",
   "dark": false,
-  "food": 1
+  "needs": {
+   "food": 2,
+   "defense": 1
+  },
+  "solves": [
+   "outside",
+   "rodents"
+  ]
  },
  {
   "text": "Рыбак",
   "dark": false,
-  "food": 1
+  "needs": {
+   "food": 2
+  }
  },
  {
   "text": "Геолог",
-  "dark": false
+  "dark": false,
+  "solves": [
+   "radiation"
+  ]
  },
  {
   "text": "Метеоролог",
@@ -141,7 +296,10 @@
  },
  {
   "text": "Юрист",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  }
  },
  {
   "text": "Бухгалтер",
@@ -149,19 +307,41 @@
  },
  {
   "text": "Блогер",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  }
  },
  {
   "text": "Актёр",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  },
+  "solves": [
+   "despair"
+  ]
  },
  {
   "text": "Музыкант",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 2
+  },
+  "solves": [
+   "despair"
+  ]
  },
  {
   "text": "Священник",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 2
+  },
+  "solves": [
+   "conflict",
+   "despair"
+  ]
  },
  {
   "text": "Пилот",
@@ -173,7 +353,13 @@
  },
  {
   "text": "Политик",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  },
+  "causes": [
+   "conflict"
+  ]
  },
  {
   "text": "Таксист",
@@ -185,11 +371,20 @@
  },
  {
   "text": "Бариста",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  }
  },
  {
   "text": "Космонавт",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": 1
+  },
+  "solves": [
+   "cramped"
+  ]
  },
  {
   "text": "Археолог",
@@ -197,19 +392,39 @@
  },
  {
   "text": "Спасатель МЧС",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "defense": 1,
+   "medicine": 1
+  }
  },
  {
   "text": "Электрик",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": 2
+  },
+  "solves": [
+   "darkness",
+   "breakdown"
+  ]
  },
  {
   "text": "Дизайнер интерьеров",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  },
+  "solves": [
+   "cramped"
+  ]
  },
  {
   "text": "Патологоанатом",
-  "dark": true
+  "dark": true,
+  "needs": {
+   "medicine": 1
+  }
  },
  {
   "text": "Гробовщик",
@@ -217,26 +432,57 @@
  },
  {
   "text": "Киллер на пенсии",
-  "dark": true
+  "dark": true,
+  "needs": {
+   "defense": 2,
+   "morale": -1
+  },
+  "solves": [
+   "outside"
+  ]
  },
  {
   "text": "Коллектор",
-  "dark": true
+  "dark": true,
+  "needs": {
+   "morale": -1
+  },
+  "causes": [
+   "conflict"
+  ]
  },
  {
   "text": "Экстрасенс-мошенник",
-  "dark": true
+  "dark": true,
+  "needs": {
+   "morale": -1
+  }
  },
  {
   "text": "Пиарщик секты",
-  "dark": true
+  "dark": true,
+  "needs": {
+   "morale": 1
+  },
+  "causes": [
+   "conflict"
+  ]
  },
  {
   "text": "Дегустатор ядов при дворе олигарха",
-  "dark": true
+  "dark": true,
+  "solves": [
+   "poison"
+  ]
  },
  {
   "text": "Тамада на поминках",
-  "dark": true
+  "dark": true,
+  "needs": {
+   "morale": 1
+  },
+  "solves": [
+   "despair"
+  ]
  }
 ]

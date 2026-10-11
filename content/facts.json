@@ -1,7 +1,13 @@
 [
  {
   "text": "Служил в армии",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "defense": 1
+  },
+  "solves": [
+   "outside"
+  ]
  },
  {
   "text": "Знает азбуку Морзе",
@@ -9,15 +15,25 @@
  },
  {
   "text": "Умеет принимать роды",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "medicine": 1,
+   "reproduction": 1
+  }
  },
  {
   "text": "Бывший чемпион по армрестлингу",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "defense": 1
+  }
  },
  {
   "text": "Сидел в тюрьме за мошенничество",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  }
  },
  {
   "text": "Знает пять языков",
@@ -37,34 +53,58 @@
  },
  {
   "text": "Пережил авиакатастрофу",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  }
  },
  {
   "text": "Тайно работал на спецслужбы",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "defense": 1
+  }
  },
  {
   "text": "Очень громко храпит",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  }
  },
  {
   "text": "Не умеет плавать",
-  "dark": false
+  "dark": false,
+  "weak": [
+   "damp"
+  ]
  },
  {
   "text": "Знает все съедобные грибы",
   "dark": false,
-  "food": 1
+  "needs": {
+   "food": 1
+  }
  },
  {
   "text": "Отлично стреляет",
   "dark": false,
-  "food": 1
+  "needs": {
+   "defense": 1
+  },
+  "solves": [
+   "outside"
+  ]
  },
  {
   "text": "Год прожил в тайге в одиночку",
   "dark": false,
-  "food": 1
+  "needs": {
+   "food": 1
+  },
+  "solves": [
+   "cold"
+  ]
  },
  {
   "text": "Блогер с миллионом подписчиков",
@@ -73,15 +113,26 @@
  {
   "text": "Ест всё, даже насекомых",
   "dark": false,
-  "food": 1
+  "needs": {
+   "food": 1
+  }
  },
  {
   "text": "Может починить любую технику",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": 2
+  },
+  "solves": [
+   "breakdown"
+  ]
  },
  {
   "text": "Может не спать трое суток",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "defense": 1
+  }
  },
  {
   "text": "Бывший сектант",
@@ -93,7 +144,10 @@
  },
  {
   "text": "Должен деньги половине людей в бункере",
-  "dark": false
+  "dark": false,
+  "causes": [
+   "conflict"
+  ]
  },
  {
   "text": "Наизусть помнит Уголовный кодекс",
@@ -105,20 +159,35 @@
  },
  {
   "text": "Был на «Что? Где? Когда?»",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  }
  },
  {
   "text": "Умеет доить корову",
   "dark": false,
-  "food": 1
+  "needs": {
+   "food": 1
+  }
  },
  {
   "text": "Знает рецепт самогона из чего угодно",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "medicine": 1,
+   "morale": 1
+  }
  },
  {
   "text": "Окончил курсы психологии",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  },
+  "solves": [
+   "conflict"
+  ]
  },
  {
   "text": "Боится признаться, что не умеет читать",
@@ -130,11 +199,20 @@
  },
  {
   "text": "Убил человека (говорит, что случайно)",
-  "dark": true
+  "dark": true,
+  "needs": {
+   "morale": -1
+  }
  },
  {
   "text": "Ведёт дневник: кого съесть первым",
-  "dark": true
+  "dark": true,
+  "needs": {
+   "morale": -1
+  },
+  "causes": [
+   "conflict"
+  ]
  },
  {
   "text": "Знает, кто устроил катастрофу",
@@ -142,6 +220,9 @@
  },
  {
   "text": "Однажды выжил в экспедиции, где выжил только он",
-  "dark": true
+  "dark": true,
+  "needs": {
+   "food": 1
+  }
  }
 ]

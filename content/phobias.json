@@ -1,7 +1,13 @@
 [
  {
   "text": "Клаустрофобия (боязнь замкнутых пространств)",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  },
+  "weak": [
+   "cramped"
+  ]
  },
  {
   "text": "Арахнофобия (пауки)",
@@ -13,35 +19,60 @@
  },
  {
   "text": "Никтофобия (темнота)",
-  "dark": false
+  "dark": false,
+  "weak": [
+   "darkness"
+  ]
  },
  {
   "text": "Гемофобия (кровь)",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "medicine": -1
+  }
  },
  {
   "text": "Агорафобия (открытые пространства)",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  }
  },
  {
   "text": "Социофобия",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  }
  },
  {
   "text": "Мизофобия (микробы и грязь)",
-  "dark": false
+  "dark": false,
+  "weak": [
+   "roaches",
+   "damp"
+  ]
  },
  {
   "text": "Танатофобия (смерть)",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  }
  },
  {
   "text": "Аквафобия (вода)",
-  "dark": false
+  "dark": false,
+  "weak": [
+   "damp"
+  ]
  },
  {
   "text": "Энтомофобия (насекомые)",
-  "dark": false
+  "dark": false,
+  "weak": [
+   "roaches"
+  ]
  },
  {
   "text": "Кинофобия (собаки)",
@@ -53,7 +84,10 @@
  },
  {
   "text": "Номофобия (остаться без телефона)",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  }
  },
  {
   "text": "Гипнофобия (уснуть)",
@@ -65,7 +99,10 @@
  },
  {
   "text": "Демофобия (толпа)",
-  "dark": false
+  "dark": false,
+  "weak": [
+   "cramped"
+  ]
  },
  {
   "text": "Эметофобия (рвота)",
@@ -73,11 +110,17 @@
  },
  {
   "text": "Боязнь громких звуков",
-  "dark": false
+  "dark": false,
+  "weak": [
+   "outside"
+  ]
  },
  {
   "text": "Ятрофобия (врачи)",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "medicine": -1
+  }
  },
  {
   "text": "Пирофобия (огонь)",
@@ -93,7 +136,10 @@
  },
  {
   "text": "Ахлуофобия (ночь без света)",
-  "dark": false
+  "dark": false,
+  "weak": [
+   "darkness"
+  ]
  },
  {
   "text": "Фобий нет",
@@ -113,7 +159,10 @@
  },
  {
   "text": "Боится, что его съедят соседи по бункеру",
-  "dark": true
+  "dark": true,
+  "needs": {
+   "morale": -1
+  }
  },
  {
   "text": "Педиофобия (куклы) — и у всех они есть",
@@ -121,6 +170,9 @@
  },
  {
   "text": "Боится быть похороненным заживо",
-  "dark": true
+  "dark": true,
+  "weak": [
+   "cramped"
+  ]
  }
 ]

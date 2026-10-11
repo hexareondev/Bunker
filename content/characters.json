@@ -1,43 +1,91 @@
 [
  {
   "text": "Добрый",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  }
  },
  {
   "text": "Прирождённый лидер",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 2
+  },
+  "solves": [
+   "conflict"
+  ]
  },
  {
   "text": "Трус",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "defense": -1
+  },
+  "weak": [
+   "outside"
+  ]
  },
  {
   "text": "Эгоист",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  }
  },
  {
   "text": "Альтруист",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  }
  },
  {
   "text": "Паникёр",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  },
+  "weak": [
+   "outside"
+  ]
  },
  {
   "text": "Оптимист",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  },
+  "solves": [
+   "despair"
+  ]
  },
  {
   "text": "Пессимист",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  },
+  "weak": [
+   "despair"
+  ]
  },
  {
   "text": "Вспыльчивый",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  },
+  "causes": [
+   "conflict"
+  ]
  },
  {
   "text": "Невозмутимый",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  }
  },
  {
   "text": "Хитрый",
@@ -53,11 +101,17 @@
  },
  {
   "text": "Лентяй",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": -1
+  }
  },
  {
   "text": "Трудоголик",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "repair": 1
+  }
  },
  {
   "text": "Болтун",
@@ -69,27 +123,55 @@
  },
  {
   "text": "Конфликтный",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  },
+  "causes": [
+   "conflict"
+  ]
  },
  {
   "text": "Дипломат",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  },
+  "solves": [
+   "conflict"
+  ]
  },
  {
   "text": "Харизматичный",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  }
  },
  {
   "text": "Ворчун",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  }
  },
  {
   "text": "Шутник",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  },
+  "solves": [
+   "despair"
+  ]
  },
  {
   "text": "Параноик",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "defense": 1,
+   "morale": -1
+  }
  },
  {
   "text": "Мечтатель",
@@ -117,30 +199,65 @@
  },
  {
   "text": "Щедрый",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": 1
+  }
  },
  {
   "text": "Истеричный",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "morale": -1
+  },
+  "weak": [
+   "conflict"
+  ]
  },
  {
   "text": "Хладнокровный",
-  "dark": false
+  "dark": false,
+  "needs": {
+   "defense": 1
+  }
  },
  {
   "text": "Психопат с хорошими манерами",
-  "dark": true
+  "dark": true,
+  "needs": {
+   "morale": -1
+  },
+  "causes": [
+   "conflict"
+  ]
  },
  {
   "text": "Клептоман",
-  "dark": true
+  "dark": true,
+  "causes": [
+   "conflict"
+  ]
  },
  {
   "text": "Мстительный — помнит всё",
-  "dark": true
+  "dark": true,
+  "causes": [
+   "conflict"
+  ]
  },
  {
   "text": "Тихий, но что-то с ним не так",
-  "dark": true
+  "dark": true,
+  "needs": {
+   "morale": -1
+  }
+ },
+ {
+  "text": "Брезгливый",
+  "dark": false,
+  "desc": "Не притронется к грязной или испорченной еде.",
+  "weak": [
+   "roaches"
+  ]
  }
 ]

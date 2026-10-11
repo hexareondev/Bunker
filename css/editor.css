@@ -97,3 +97,15 @@
 .ed-id-row .btn { flex: none; white-space: nowrap; }
 .ed-id-msg { font-size: .75rem; color: var(--ok); }
 .ed-id-msg.bad { color: var(--bad); font-weight: 600; }
+
+/* ---------- Поля для финала ---------- */
+.ed-heading { margin-top: 6px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
+.ed-needs { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-top: 4px; }
+.ed-need { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 4px 4px 4px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: .84rem; color: var(--text); }
+.ed-need select { width: 64px !important; padding: 5px 6px !important; flex: none; }
+.ed-need.pos { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 8%, var(--bg)); }
+.ed-need.neg { border-color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--bg)); }
+.ed-probs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.ed-prob { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); font-size: .82rem; color: var(--text); cursor: pointer; user-select: none; }
+.ed-prob input { display: none; }
+.ed-prob.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg)); font-weight: 600; }

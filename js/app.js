@@ -5,9 +5,10 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=2.3';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=2.3';
-import * as E from './effects.js?v=2.3';
+import * as L from './logic.js?v=2.4';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=2.4';
+import * as E from './effects.js?v=2.4';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=2.4';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -91,8 +92,32 @@ function rawParts(pid, key) {
   const r = state?.cards?.[pid]?.raw?.[key];
   return r && r !== NONE ? String(r).split(SEP) : [];
 }
-const traitFood = (pid, key) => rawParts(pid, key).reduce((sum, r) => sum + +((itemIn(traitFile(key), r) || {}).food || 0), 0);
-const featureFood = f => +((itemIn('bunkers', f) || {}).food || 0);
+const traitFood = (pid, key) => rawParts(pid, key).reduce((sum, r) => sum + (+itemNeeds(itemIn(traitFile(key), r)).food || 0), 0);
+const featureFood = f => +itemNeeds(itemIn('bunkers', f)).food || 0;
+
+// ---------- Метки нужд и проблем ----------
+const tagInfo = id => (content?.tags || []).find(t => t && t.id === id) || { id, name: id, icon: '⚠️' };
+function markerChips(items, hotFood = false) {
+  const needs = {}, solves = new Set(), weak = new Set(), causes = new Set();
+  for (const it of items) {
+    if (!it) continue;
+    for (const [k, v] of Object.entries(itemNeeds(it))) needs[k] = (needs[k] || 0) + (+v || 0);
+    (it.solves || []).forEach(x => solves.add(x));
+    (it.weak || []).forEach(x => weak.add(x));
+    (it.causes || []).forEach(x => causes.add(x));
+  }
+  const out = [];
+  for (const n of NEEDS) {
+    const v = needs[n.id];
+    if (!v) continue;
+    out.push(`<span class="mk ${v > 0 ? 'plus' : 'minus'} ${n.id === 'food' && hotFood ? 'hot' : ''}" title="${esc(n.name)}">${n.icon}${v > 0 ? '+' : '−'}${Math.abs(v)}</span>`);
+  }
+  solves.forEach(id => { const t = tagInfo(id); out.push(`<span class="mk solve" title="Решает: ${esc(t.name)}">✔${t.icon}</span>`); });
+  weak.forEach(id => { const t = tagInfo(id); out.push(`<span class="mk weak" title="Уязвим к: ${esc(t.name)}">⚠${t.icon}</span>`); });
+  causes.forEach(id => { const t = tagInfo(id); out.push(`<span class="mk cause" title="Вызывает: ${esc(t.name)}">${t.icon}!</span>`); });
+  return out.length ? `<span class="mks">${out.join('')}</span>` : '';
+}
+const showMarkers = g => !!g.settings?.showMarkers || g.phase === 'end';
 function foodScore(pid) { return L.TRAIT_KEYS.reduce((sum, k) => sum + Math.max(0, traitFood(pid, k)), 0); }
 function foodTag(v, hot) {
   if (!v) return '';
@@ -774,6 +799,10 @@ const FIELDS = [
   { k: 'tieRule', t: 'select', l: 'При ничьей', opts: { revote: 'Переголосование', random: 'Жребий', none: 'Никто не изгнан' } },
   { k: 'exiledRevealsAll', t: 'check', l: 'Изгнанный раскрывает все карты' },
   { k: 'actionCards', t: 'check', l: 'Карты действий' },
+  { k: 'showMarkers', t: 'check', l: 'Показывать метки нужд и проблем на карточках (иначе — только в финале)' },
+  { k: 'finalMode', t: 'select', l: 'Финал', opts: { full: 'История + итог (выжили или нет и почему)', story: 'Только история' } },
+  { k: 'finalFates', t: 'check', l: 'Финал: судьба каждого выжившего' },
+  { k: 'finalExiled', t: 'check', l: 'Финал: учитывать изгнанных' },
   { k: 'actionsPerPlayer', t: 'num', l: 'Карт действий на игрока', min: 0, max: 5 },
   { k: 'bunkerFeatures', t: 'num', l: 'Особенностей бункера', min: 1, max: 10 },
   { k: 'speechTime', t: 'num', l: 'Речь игрока, сек (0 — без таймера)', min: 0, max: 900 },
@@ -997,13 +1026,13 @@ function traitRows(pid, g, { mine = false } = {}) {
     if (!mine && !open) return '';
     const m = TMETA[t.key] || {};
     const desc = cardDesc(pid, t.key);
-    const ft = foodTag(traitFood(pid, t.key), L.foodInfo(g).status === 'short');
+    const ft = showMarkers(g) ? markerChips(rawParts(pid, t.key).map(r => itemIn(t.file, r)), L.foodInfo(g).status === 'short') : '';
     const btn = mine && !open && L.canReveal(g, pid, t.key) ? `<button class="btn small tc-btn" data-a="reveal" data-key="${t.key}">Раскрыть</button>` : '';
     const chip = mine ? (open ? '<span class="tc-chip on" title="Открыто всем">👁</span>' : '<span class="tc-chip" title="Видите только вы">🔒</span>') : '';
     return `<div class="tcard ${open ? 'open' : 'closed'}" style="--tc:${m.color}">
       <span class="tc-ico">${m.icon}</span>
       <div class="tc-body">
-        <div class="tc-label">${t.label}${ft}</div>
+        <div class="tc-label">${t.label}</div>${ft ? `<div class="tc-marks">${ft}</div>` : ''}
         <div class="tc-val">${esc(card.traits[t.key])}</div>
         ${desc ? `<div class="tc-desc">${esc(desc)}</div>` : ''}
       </div>
@@ -1144,8 +1173,10 @@ function tabPlayers(g) {
 
 function featureItem(f) {
   const d = featureDesc(f);
-  const inf = featureFoodMonths(f) === 'inf' ? '<span class="food-tag plus">🍖 ∞</span>' : foodTag(featureFood(f));
-  return `<span class="feat-name">${esc(f)}${inf}</span>${d ? `<span class="feat-desc">${esc(d)}</span>` : ''}`;
+  const g = state?.game ? L.norm(clone(state.game)) : null;
+  const marks = g && showMarkers(g) ? markerChips([itemIn('bunkers', f)]) : '';
+  const inf = featureFoodMonths(f) === 'inf' && g && showMarkers(g) ? '<span class="mk plus">🍖∞</span>' : '';
+  return `<span class="feat-name">${esc(f)}${inf}${marks}</span>${d ? `<span class="feat-desc">${esc(d)}</span>` : ''}`;
 }
 function foodLine(g) {
   const fi = L.foodInfo(g);
@@ -1158,7 +1189,7 @@ function foodNote(g) {
   if (fi.infinite) return '<div class="food-note ok">🍖 В бункере неиссякаемый источник еды — голод не грозит, сколько бы ни пришлось сидеть.</div>';
   if (fi.status === 'ok') return `<div class="food-note ok">🍖 Еды хватит на весь срок (${L.monthsText(fi.need)}).</div>`;
   if (fi.status === 'unknown') return `<div class="food-note">🍖 Сколько сидеть в бункере — неизвестно. Умения добывать еду пригодятся.</div>`;
-  return `<div class="food-note short">🍖 Еды не хватит: нужно ${L.monthsText(fi.need)}, есть на ${L.monthsText(fi.months)}. Особенно ценны те, кто умеет добывать пищу — их характеристики помечены 🍖.</div>`;
+  return `<div class="food-note short">🍖 Еды не хватит: нужно ${L.monthsText(fi.need)}, есть на ${L.monthsText(fi.months)}. Особенно ценны те, кто умеет добывать пищу${showMarkers(g) ? ' — их характеристики помечены 🍖' : ''}.</div>`;
 }
 
 function tabBunker(g) {
@@ -1240,18 +1271,39 @@ function renderEnd() {
   const cards = state.cards || {};
   const names = Object.fromEntries(g.players.map(p => [p, nameOf(p)]));
   const storyKey = `${roomCode}:${g.version}`;
-  if (!state.game.story && amAdvancer() && storyRequested !== storyKey) {
-    // историю генерирует один клиент (хост или первый онлайн), чтобы у всех она была одинаковой
+  if (!state.game.final && content && amAdvancer() && storyRequested !== storyKey) {
+    // финал считает один клиент (хост или первый онлайн), чтобы у всех он был одинаковым
     storyRequested = storyKey;
-    set(R('game/story'), L.makeStory(g, cards, names, Object.fromEntries(g.players.map(p => [p, foodScore(p)])))).catch(console.error);
+    try {
+      const fin = makeFinal(g, cards, names, content, g.settings);
+      update(R('game'), { final: JSON.parse(JSON.stringify(fin)), story: fin.story }).catch(console.error);
+    } catch (e) { console.error(e); }
   }
-  const story = state.game.story || ['Пишем историю выживания…'];
-  const block = list => list.map(p => `<div class="pcard ${g.alive[p] ? '' : 'dead'}"><div class="phead"><b>${esc(nameOf(p))}</b></div>${traitRows(p, g)}</div>`).join('');
+  const fin = state.game.final;
   const surv = L.aliveIds(g), out = g.players.filter(p => !g.alive[p]);
+  const block = list => list.map(p => `<div class="pcard ${g.alive[p] ? '' : 'dead'}"><div class="phead"><b>${esc(nameOf(p))}</b></div>${traitRows(p, g)}</div>`).join('');
+  const full = fin && fin.mode !== 'story';
+  const arr = v => (Array.isArray(v) ? v : v ? Object.values(v) : []);
+  const verdict = fin && full ? `<div class="verdict v-${fin.verdict.level}"><div class="v-ico">${fin.verdict.icon}</div><div><div class="v-title">${esc(fin.verdict.title)}</div><div class="v-text">${esc(fin.verdict.text)}</div></div></div>` : '';
+  const needsHtml = fin && full ? `<h2>Нужды бункера</h2><div class="needs">${arr(fin.needs).map(n => `
+      <div class="need n-${n.status}"><div class="need-head"><span>${n.icon}</span><b>${esc(n.name)}</b>${n.important ? '<span class="need-imp" title="Особенно важно в этой катастрофе">важно</span>' : ''}<span class="need-st">${{ ok: '✓', weak: '~', fail: '✗' }[n.status]}</span></div><div class="need-text">${esc(n.text)}</div></div>`).join('')}</div>` : '';
+  const probs = arr(fin?.problems);
+  const probsHtml = fin && full && probs.length ? `<h2>Проблемы</h2><div class="probs">${probs.map(p => `
+      <div class="prob ${p.solved ? 'ok' : 'bad'}"><div class="prob-head"><span>${p.icon}</span><b>${esc(p.name)}</b><span class="prob-st">${p.solved ? 'решена' : 'не решена'}</span></div>
+        <div class="prob-text">${esc(p.text)}</div>
+        ${arr(p.sources).length ? `<div class="prob-src">Откуда: ${esc(arr(p.sources).join('; '))}</div>` : ''}
+        ${arr(p.weak).length && !p.solved ? `<div class="prob-src">Уязвимы: ${esc(arr(p.weak).join(', '))}</div>` : ''}</div>`).join('')}</div>` : '';
+  const fates = arr(fin?.fates);
+  const fatesHtml = fates.length ? `<h2>Судьбы</h2><ul class="fates">${fates.map(f => `<li class="f-${f.status}"><span class="f-ico">${{ alive: '🟢', hurt: '🟠', dead: '💀' }[f.status] || '•'}</span><span>${esc(f.text)}</span></li>`).join('')}</ul>` : '';
+  const exiled = arr(fin?.exiled);
+  const exiledHtml = exiled.length ? `<h2>Изгнанные</h2><ul class="fates">${exiled.map(x => `<li class="x-${x.kind}"><span class="f-ico">${x.kind === 'regret' ? '😔' : '👍'}</span><span>${esc(x.text)}</span></li>`).join('')}</ul>` : '';
+  const story = arr(fin?.story).length ? arr(fin.story) : arr(state.game.story);
   setHTML(`
   <div class="wrap">
     <h1 class="logo small">Финал</h1>
-    <div class="card story">${story.map(x => `<p>${esc(x)}</p>`).join('')}</div>
+    ${verdict}
+    <div class="card story">${story.length ? story.map(x => `<p>${esc(x)}</p>`).join('') : '<p class="muted">Подводим итоги…</p>'}</div>
+    ${needsHtml}${probsHtml}${fatesHtml}${exiledHtml}
     <h2>Выжившие · ${surv.length}</h2><div class="players">${block(surv)}</div>
     <h2>Остались снаружи · ${out.length}</h2><div class="players">${block(out)}</div>
     <div class="card"><div class="tl">Бункер</div><ul class="feats">${g.bunker.features.map(f => `<li>${featureItem(f)}</li>`).join('')}</ul></div>

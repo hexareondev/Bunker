@@ -4,104 +4,198 @@
   "text": "Поверхность заражена радиацией, крупные города уничтожены.",
   "duration": "2 года",
   "dark": false,
-  "months": 24
+  "months": 24,
+  "needs": {
+   "medicine": 1
+  },
+  "causes": [
+   "radiation"
+  ]
  },
  {
   "title": "Пандемия",
   "text": "Неизвестный вирус выкосил большую часть населения планеты.",
   "duration": "1 год",
   "dark": false,
-  "months": 12
+  "months": 12,
+  "needs": {
+   "medicine": 2
+  },
+  "causes": [
+   "infection"
+  ]
  },
  {
   "title": "Зомби-апокалипсис",
   "text": "Мёртвые встали и очень голодны. Укус заразен.",
   "duration": "3 года",
   "dark": false,
-  "months": 36
+  "months": 36,
+  "needs": {
+   "defense": 2
+  },
+  "causes": [
+   "outside"
+  ]
  },
  {
   "title": "Падение астероида",
   "text": "Астероид поднял в атмосферу пыль, солнце скрыто, наступила долгая зима.",
   "duration": "5 лет",
   "dark": false,
-  "months": 60
+  "months": 60,
+  "needs": {
+   "food": 1
+  },
+  "causes": [
+   "cold",
+   "darkness"
+  ]
  },
  {
   "title": "Извержение супервулкана",
   "text": "Пепел покрыл континент, урожаев не будет несколько лет.",
   "duration": "3 года",
   "dark": false,
-  "months": 36
+  "months": 36,
+  "needs": {
+   "food": 1
+  },
+  "causes": [
+   "poison",
+   "cold"
+  ]
  },
  {
   "title": "Глобальное оледенение",
   "text": "Температура упала до −60 °C, жизнь на поверхности невозможна.",
   "duration": "10 лет",
   "dark": false,
-  "months": 120
+  "months": 120,
+  "causes": [
+   "cold"
+  ]
  },
  {
   "title": "Восстание машин",
   "text": "Искусственный интеллект решил, что люди — лишние. Любая электроника опасна.",
   "duration": "5 лет",
   "dark": false,
-  "months": 60
+  "months": 60,
+  "needs": {
+   "defense": 1
+  },
+  "causes": [
+   "outside",
+   "darkness"
+  ]
  },
  {
   "title": "Нашествие инопланетян",
   "text": "Пришельцы зачищают поверхность. Под землёй они пока не ищут.",
   "duration": "неизвестно",
   "dark": false,
-  "months": null
+  "months": null,
+  "needs": {
+   "defense": 2
+  },
+  "causes": [
+   "outside"
+  ]
  },
  {
   "title": "Химическая катастрофа",
   "text": "Авария на заводах отравила воздух и воду.",
   "duration": "1,5 года",
   "dark": false,
-  "months": 18
+  "months": 18,
+  "needs": {
+   "medicine": 1
+  },
+  "causes": [
+   "poison"
+  ]
  },
  {
   "title": "Мощная солнечная вспышка",
   "text": "Вся электроника сгорела, связь и энергосистемы уничтожены.",
   "duration": "1 год",
   "dark": false,
-  "months": 12
+  "months": 12,
+  "needs": {
+   "repair": 1
+  },
+  "causes": [
+   "darkness"
+  ]
  },
  {
   "title": "Всемирный потоп",
   "text": "Ледники растаяли, большая часть суши под водой.",
   "duration": "4 года",
   "dark": false,
-  "months": 48
+  "months": 48,
+  "needs": {
+   "repair": 1
+  },
+  "causes": [
+   "damp"
+  ]
  },
  {
   "title": "Мутировавшие насекомые",
   "text": "Гигантские насекомые захватили поверхность.",
   "duration": "2 года",
   "dark": false,
-  "months": 24
+  "months": 24,
+  "needs": {
+   "defense": 1
+  },
+  "causes": [
+   "outside",
+   "roaches"
+  ]
  },
  {
   "title": "Ядовитый туман",
   "text": "Странный туман окутал планету. Вдохнувший его сходит с ума.",
   "duration": "неизвестно",
   "dark": false,
-  "months": null
+  "months": null,
+  "needs": {
+   "medicine": 1,
+   "morale": 1
+  },
+  "causes": [
+   "poison"
+  ]
  },
  {
   "title": "Каннибальская чума",
   "text": "Болезнь превращает людей в каннибалов. Симптомы проявляются не сразу.",
   "duration": "2 года",
   "dark": true,
-  "months": 24
+  "months": 24,
+  "needs": {
+   "medicine": 1,
+   "defense": 1
+  },
+  "causes": [
+   "infection",
+   "outside"
+  ]
  },
  {
   "title": "Конец света по календарю майя",
   "text": "Майя ошиблись всего на несколько лет. Мир рушится по всем пунктам сразу.",
   "duration": "7 лет",
   "dark": true,
-  "months": 84
+  "months": 84,
+  "needs": {
+   "morale": 1
+  },
+  "causes": [
+   "despair"
+  ]
  }
 ]

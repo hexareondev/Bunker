@@ -27,6 +27,10 @@ export const DEFAULT_SETTINGS = {
   voteSecret: false,
   tieRule: 'revote',      // revote | random | none
   exiledRevealsAll: true,
+  finalMode: 'full',      // 'full' — история + итог, 'story' — только история
+  finalFates: true,       // судьба каждого выжившего
+  finalExiled: true,      // учитывать изгнанных в финале
+  showMarkers: false,     // метки нужд и проблем на карточках видны во время игры
   actionCards: true,
   actionsPerPlayer: 2,
   bunkerFeatures: 5,
@@ -66,8 +70,9 @@ export const textOf = x => (typeof x === 'string' ? x : x.text);
 // Пул контента с учётом настройки чёрного юмора
 export function pool(content, file, s) {
   const arr = content[file] || [];
-  const f = s.darkHumor ? arr : arr.filter(x => !(x && x.dark));
-  return f.length ? f : arr;
+  const avail = arr.filter(x => !(x && x.onlyByCard)); // значения, которые выдают только карты действий
+  const f = s.darkHumor ? avail : avail.filter(x => !(x && x.dark));
+  return f.length ? f : avail.length ? avail : arr;
 }
 
 export function makeAge(s) {

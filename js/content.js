@@ -1,9 +1,9 @@
 // Загрузка контента из content/*.json и свои наборы карточек для лобби
-import { readZip } from './zip.js?v=2.3';
+import { readZip } from './zip.js?v=2.4';
 
-export const FILES = ['conditions', 'professions', 'biology', 'health', 'hobbies', 'phobias', 'baggage', 'facts', 'characters', 'catastrophes', 'bunkers', 'actions'];
+export const FILES = ['tags', 'conditions', 'professions', 'biology', 'health', 'hobbies', 'phobias', 'baggage', 'facts', 'characters', 'catastrophes', 'bunkers', 'actions'];
 export const FILE_LABELS = {
-  catastrophes: 'Катастрофы', conditions: 'Состояния бункера', bunkers: 'Особенности бункера',
+  tags: 'Проблемы (для финала)', catastrophes: 'Катастрофы', conditions: 'Состояния бункера', bunkers: 'Особенности бункера',
   professions: 'Профессии', biology: 'Биология', health: 'Здоровье', hobbies: 'Хобби', phobias: 'Фобии',
   baggage: 'Багаж', facts: 'Факты', characters: 'Характер', actions: 'Карты действий',
 };
@@ -54,7 +54,7 @@ export async function parseUpload(fileList) {
     let arr;
     try { arr = JSON.parse(e.text); } catch { throw new Error(`Не удалось прочитать ${e.name}: это не JSON`); }
     if (!Array.isArray(arr)) throw new Error(`В ${e.name} должен быть список записей`);
-    const clean = arr.filter(x => x && typeof x === 'object' && (x.text || x.title) && (base !== 'actions' || (x.effect && x.effect.type)));
+    const clean = arr.filter(x => x && typeof x === 'object' && (x.text || x.title || x.id) && (base !== 'actions' || (x.effect && x.effect.type)));
     if (clean.length) files[base] = clean;
   }
   return { files, skipped };

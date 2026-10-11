@@ -1,35 +1,64 @@
-import { makeZip, downloadBlob, readZip } from './zip.js?v=2.3';
-import * as E from './effects.js?v=2.3';
+import { makeZip, downloadBlob, readZip } from './zip.js?v=2.4';
+import * as E from './effects.js?v=2.4';
 
 // ---------------- Описание разделов ----------------
-const FOOD = { t: 'select', opts: [['0', 'нет'], ['1', '🍖 помогает с едой'], ['-1', '🍖 −еда (нужно больше еды)']], num: true };
+const NEEDS = [['food', '🍖', 'Еда'], ['medicine', '🩺', 'Медицина'], ['repair', '🔧', 'Ремонт'], ['defense', '🛡️', 'Защита'], ['morale', '🙂', 'Мораль'], ['reproduction', '👶', 'Род']];
+// Поля «для финала»: что даёт группе, что решает, к чему уязвим, что вызывает
+const FINAL_FIELDS = [
+  { t: 'heading', l: '🏁 Для финала' },
+  { k: 'needs', l: 'Вклад в нужды группы (−2…+2)', t: 'needs' },
+  { k: 'solves', l: '✔ Решает проблемы', t: 'probs' },
+  { k: 'weak', l: '⚠ Уязвим к проблемам', t: 'probs' },
+  { k: 'causes', l: '❗ Вызывает проблемы', t: 'probs' },
+];
 const TRAIT_FIELDS = [
   { k: 'text', l: 'Значение', t: 'text', req: true },
   { k: 'desc', l: 'Описание (необязательно)', t: 'area', ph: 'Чем это полезно или опасно в бункере' },
-  { k: 'food', l: 'Связь с едой', ...FOOD },
   { k: 'dark', l: 'Чёрный юмор', t: 'check' },
+  ...FINAL_FIELDS,
 ];
 
 const SECTIONS = [
+  { f: 'tags', label: 'Проблемы', icon: '⚠️', main: 'name', color: '#c2541a',
+    hint: 'Проблемы связывают карточки между собой в финале: катастрофа, бункер или игрок их вызывают, другие карточки решают, у третьих к ним уязвимость. В текстах можно писать {who} — кто решил, {name} — имя уязвимого. Формы вроде «умер(ла)» подстроятся под пол персонажа.',
+    fields: [
+      { k: 'icon', l: 'Значок (эмодзи)', t: 'text', short: true },
+      { k: 'name', l: 'Название', t: 'text', req: true },
+      { k: 'id', l: 'ID (латиницей, уникальный)', t: 'id', req: true },
+      { k: 'desc', l: 'Описание', t: 'area' },
+      { k: 'need', l: 'По какой нужде бьёт, если не решена', t: 'select', opts: NEEDS.map(([id, ic, n]) => [id, `${ic} ${n}`]) },
+      { k: 'power', l: 'Сила удара по нужде (1–3)', t: 'num' },
+      { k: 'foodLoss', l: 'Сколько месяцев еды пропадёт, если не решена', t: 'num' },
+      { k: 'deadly', l: '💀 Смертельна для уязвимых, если не решена', t: 'check' },
+      { k: 'solved', l: 'Текст, если решена ({who})', t: 'area' },
+      { k: 'unsolved', l: 'Текст, если не решена', t: 'area' },
+      { k: 'weak', l: 'Что случилось с уязвимым ({name})', t: 'area' },
+    ] },
   { f: 'catastrophes', label: 'Катастрофы', icon: '☄️', main: 'title', fields: [
     { k: 'title', l: 'Название', t: 'text', req: true },
     { k: 'text', l: 'Описание', t: 'area' },
     { k: 'duration', l: 'Сколько сидеть (текстом)', t: 'text', ph: 'например: 2 года' },
     { k: 'months', l: 'Срок в месяцах — для расчёта еды (пусто — неизвестно)', t: 'num' },
     { k: 'dark', l: 'Чёрный юмор', t: 'check' },
+    { t: 'heading', l: '🏁 Для финала' },
+    { k: 'needs', l: 'Что особенно важно при этой катастрофе (0…+2)', t: 'needs', imp: true },
+    { k: 'causes', l: '❗ Вызывает проблемы', t: 'probs' },
   ] },
   { f: 'conditions', label: 'Состояние бункера', icon: '🏚️', fields: [
     { k: 'text', l: 'Состояние', t: 'text', req: true },
     { k: 'desc', l: 'Описание', t: 'area' },
     { k: 'dark', l: 'Чёрный юмор', t: 'check' },
+    { t: 'heading', l: '🏁 Для финала' },
+    { k: 'needs', l: 'Что особенно важно в таком бункере (0…+2)', t: 'needs', imp: true },
+    { k: 'causes', l: '❗ Вызывает проблемы', t: 'probs' },
   ] },
   { f: 'bunkers', label: 'Особенности бункера', icon: '🏗️', fields: [
     { k: 'text', l: 'Особенность', t: 'text', req: true },
     { k: 'desc', l: 'Описание', t: 'area' },
-    { k: 'food', l: 'Связь с едой', ...FOOD },
     { k: 'foodInfinite', l: '🍖 Бесконечная еда — перекрывает любую нужду в еде', t: 'check', re: true },
     { k: 'foodMonths', l: 'Меняет запас еды, месяцев (например 12 или -2)', t: 'num', showItem: x => !x.foodInfinite },
     { k: 'dark', l: 'Чёрный юмор', t: 'check' },
+    ...FINAL_FIELDS,
   ] },
   { f: 'professions', label: 'Профессии', icon: '💼', color: '#3b82f6', hint: 'Стаж добавляется в игре автоматически.', fields: TRAIT_FIELDS },
   { f: 'biology', label: 'Биология', icon: '🧬', color: '#ec4899', hint: 'Начинайте с «Мужчина» или «Женщина», дополнение — через запятую. Возраст добавляется автоматически. Слово «бесплоден/бесплодна» учитывается в финале.', fields: TRAIT_FIELDS },
@@ -89,7 +118,16 @@ function setPath(o, path, v) {
 function clean(item) {
   const x = JSON.parse(JSON.stringify(item));
   if ('desc' in x && !String(x.desc || '').trim()) delete x.desc;
-  if ('food' in x && !Number(x.food)) delete x.food;
+  if ('food' in x) { if (Number(x.food)) { x.needs = { ...(x.needs || {}) }; if (x.needs.food === undefined) x.needs.food = Number(x.food); } delete x.food; }
+  if (x.needs && typeof x.needs === 'object') {
+    for (const k of Object.keys(x.needs)) if (!Number(x.needs[k])) delete x.needs[k]; else x.needs[k] = Number(x.needs[k]);
+    if (!Object.keys(x.needs).length) delete x.needs;
+  }
+  for (const k of ['solves', 'weak', 'causes']) if (Array.isArray(x[k]) && !x[k].length) delete x[k];
+  if ('power' in x && !Number(x.power)) delete x.power;
+  if ('foodLoss' in x && !Number(x.foodLoss)) delete x.foodLoss;
+  if ('deadly' in x && !x.deadly) delete x.deadly;
+  for (const k of ['name', 'solved', 'unsolved']) if (typeof x[k] === 'string') { x[k] = x[k].trim(); if (!x[k] && k !== 'name') delete x[k]; }
   if ('foodInfinite' in x && !x.foodInfinite) delete x.foodInfinite;
   if (x.foodInfinite) delete x.foodMonths;
   if ('foodMonths' in x && !Number(x.foodMonths)) delete x.foodMonths;
@@ -127,7 +165,8 @@ function cleanEffect(raw) {
 
 function newItem(f) {
   if (f === 'catastrophes') return { title: '', text: '', duration: '', months: null, dark: false };
-  if (f === 'actions') return { id: uniqueId('card_' + Math.random().toString(36).slice(2, 6), -1), icon: '🃏', title: '', text: '', effect: { type: 'change', op: 'replace', object: 'trait', key: 'random', target: 'self', mode: 'random' }, dark: false };
+  if (f === 'tags') return { id: uniqueId('problem_' + Math.random().toString(36).slice(2, 5), -1), icon: '⚠️', name: '', need: 'morale', power: 1 };
+  if (f === 'actions') return { id: uniqueId('card_' + Math.random().toString(36).slice(2, 6), -1, 'actions'), icon: '🃏', title: '', text: '', effect: { type: 'change', op: 'replace', object: 'trait', key: 'random', target: 'self', mode: 'random' }, dark: false };
   return { text: '', dark: false };
 }
 
@@ -218,7 +257,7 @@ function render() {
 const GROUPS = [
   ['Мир и бункер', ['catastrophes', 'conditions', 'bunkers']],
   ['Характеристики игроков', ['professions', 'biology', 'health', 'hobbies', 'phobias', 'baggage', 'facts', 'characters']],
-  ['Карты', ['actions']],
+  ['Карты и финал', ['actions', 'tags']],
 ];
 let menuOpen = false;
 function menuHtml(ch) {
@@ -239,17 +278,27 @@ function badges(sec, x) {
   if (Number(x.food) < 0) b.push('<span class="ed-b nofood">🍖 −еда</span>');
   if (x.foodInfinite) b.push('<span class="ed-b food">🍖 ∞ еда</span>');
   else if (Number(x.foodMonths)) b.push(`<span class="ed-b food">${x.foodMonths > 0 ? '+' : ''}${x.foodMonths} мес.</span>`);
+  const nd = x.needs || {};
+  const nv = NEEDS.filter(([id]) => Number(nd[id])).map(([id, ic]) => `${ic}${nd[id] > 0 ? '+' : ''}${nd[id]}`);
+  if (Number(x.food) && !nd.food) nv.unshift(`🍖${x.food > 0 ? '+' : ''}${x.food}`);
+  if (nv.length) b.push(`<span class="ed-b">${nv.join(' ')}</span>`);
+  const ti = id => (data.tags || []).find(t => t.id === id)?.icon || '?';
+  if ((x.solves || []).length) b.push(`<span class="ed-b food">✔${x.solves.map(ti).join('')}</span>`);
+  if (sec.f !== 'tags' && (x.weak || []).length && Array.isArray(x.weak)) b.push(`<span class="ed-b nofood">⚠${x.weak.map(ti).join('')}</span>`);
+  if ((x.causes || []).length) b.push(`<span class="ed-b dark">❗${x.causes.map(ti).join('')}</span>`);
+  if (sec.f === 'tags' && x.deadly) b.push('<span class="ed-b dark">💀 смертельна</span>');
   if (x.desc) b.push('<span class="ed-b">описание</span>');
   return b.join('');
 }
 
 function summaryText(sec, x) {
   const main = sec.main ? x[sec.main] : x.text;
-  const pre = sec.f === 'actions' ? `${esc(x.icon || '🃏')} ` : '';
+  const pre = sec.f === 'actions' || sec.f === 'tags' ? `${esc(x.icon || (sec.f === 'tags' ? '⚠️' : '🃏'))} ` : '';
   return `${pre}${main ? esc(main) : '<span class="muted">(пусто)</span>'}`;
 }
 
 function fieldHtml(f, x, i) {
+  if (f.t === 'heading') return `<div class="ed-heading">${f.l}</div>`;
   const ef = E.normalizeEffect(x.effect || {});
   if (f.show && !f.show(ef)) return '';
   if (f.showItem && !f.showItem(x)) return '';
@@ -260,6 +309,23 @@ function fieldHtml(f, x, i) {
   let input;
   const opts = typeof f.opts === 'function' ? f.opts(ef) : f.opts;
   const cur = f.k.startsWith('effect.') ? getPath({ effect: ef }, f.k) : v;
+  if (f.t === 'needs') {
+    const nd = x.needs || {};
+    const vals = f.imp ? [0, 1, 2] : [-2, -1, 0, 1, 2];
+    const legacyFood = Number(x.food) && nd.food === undefined ? Number(x.food) : null;
+    return `<div class="field"><span>${f.l}</span><div class="ed-needs">${NEEDS.map(([id, ic, nm]) => {
+      const cv = legacyFood !== null && id === 'food' ? legacyFood : Number(nd[id] || 0);
+      return `<label class="ed-need ${cv > 0 ? 'pos' : cv < 0 ? 'neg' : ''}"><span>${ic} ${nm}</span>
+        <select data-i="${i}" data-k="needs.${id}">${vals.map(v => `<option value="${v}" ${v === cv ? 'selected' : ''}>${v > 0 ? '+' + v : v === 0 ? '0' : '−' + Math.abs(v)}</option>`).join('')}</select></label>`;
+    }).join('')}</div></div>`;
+  }
+  if (f.t === 'probs') {
+    const sel = new Set(Array.isArray(x[f.k]) ? x[f.k] : []);
+    const tags = (data.tags || []).filter(t => t && t.id);
+    if (!tags.length) return `<div class="field"><span>${f.l}</span><div class="ed-sub">Сначала создайте проблемы в разделе «Проблемы».</div></div>`;
+    return `<div class="field"><span>${f.l}</span><div class="ed-probs">${tags.map(t => `
+      <label class="ed-prob ${sel.has(t.id) ? 'on' : ''}" title="${esc(t.desc || '')}"><input type="checkbox" data-i="${i}" data-prob="${f.k}" value="${esc(t.id)}" ${sel.has(t.id) ? 'checked' : ''}>${esc(t.icon || '⚠️')} ${esc(t.name || t.id)}</label>`).join('')}</div></div>`;
+  }
   if (f.t === 'id') {
     const dup = idDup(i);
     return `<label class="field"><span>${f.l} <span class="req">*</span></span>
@@ -283,25 +349,25 @@ function slug(t) {
     .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24);
 }
 function idDup(i) {
-  const id = String(data.actions?.[i]?.id || '').trim();
-  return !!id && (data.actions || []).some((a, j) => j !== i && String(a.id || '').trim() === id);
+  const id = String(data[cur]?.[i]?.id || '').trim();
+  return !!id && (data[cur] || []).some((a, j) => j !== i && String(a.id || '').trim() === id);
 }
 function idMsg(i) {
-  const id = String(data.actions?.[i]?.id || '').trim();
+  const id = String(data[cur]?.[i]?.id || '').trim();
   if (!id) return '⚠ ID обязателен';
   if (!/^[a-z0-9_]+$/i.test(id)) return '⚠ Только латиница, цифры и «_»';
-  if (idDup(i)) return '⚠ Такой ID уже есть у другой карты';
+  if (idDup(i)) return '⚠ Такой ID уже есть в этом разделе';
   return '✓ ID уникален';
 }
-function uniqueId(base, i) {
-  const taken = new Set((data.actions || []).filter((_, j) => j !== i).map(a => a.id));
+function uniqueId(base, i, file = cur) {
+  const taken = new Set((data[file] || []).filter((_, j) => j !== i).map(a => a.id));
   let id = base || 'card';
   if (!taken.has(id)) return id;
   for (let n = 2; n < 1000; n++) if (!taken.has(`${id}_${n}`)) return `${id}_${n}`;
   return `${id}_${Date.now().toString(36)}`;
 }
 function refreshIdMsgs() {
-  if (cur !== 'actions') return;
+  if (!SEC[cur].fields.some(f => f.t === 'id')) return;
   document.querySelectorAll('[id^="idmsg-"]').forEach(el => {
     const i = +el.id.slice(6);
     el.textContent = idMsg(i);
@@ -411,6 +477,20 @@ function validate() {
     });
     if (!(data[s.f] || []).length) issues.push(`${s.label}: раздел пуст — в игре будет нечего выдавать`);
   }
+  // ссылки на проблемы
+  const tagIds = new Set((data.tags || []).map(t => t.id).filter(Boolean));
+  const tagDup = (data.tags || []).map(t => t.id).filter((id, i, a) => id && a.indexOf(id) !== i);
+  if (tagDup.length) issues.push(`Проблемы: повторяются ID — ${[...new Set(tagDup)].join(', ')}`);
+  for (const s of SECTIONS) {
+    if (s.f === 'tags') continue;
+    (data[s.f] || []).forEach((x, i) => {
+      for (const k of ['solves', 'weak', 'causes']) {
+        if (!Array.isArray(x[k])) continue;
+        const bad = x[k].filter(id => !tagIds.has(id));
+        if (bad.length) issues.push(`${s.label}: «${x.title || x.text || '№' + (i + 1)}» ссылается на несуществующие проблемы: ${bad.join(', ')}`);
+      }
+    });
+  }
   (data.actions || []).forEach((x, i) => {
     for (const msg of E.effectIssues(x.effect)) issues.push(`Карты действий: «${x.title || '№' + (i + 1)}» — ${msg}`);
     const ef = E.normalizeEffect(x.effect);
@@ -484,8 +564,8 @@ $ed.addEventListener('click', async e => {
     render(); saveDraft();
     toast('Запись удалена');
   } else if (a === 'regenId') {
-    const item = data.actions[i];
-    item.id = uniqueId(slug(item.title) || 'card', i);
+    const item = data[cur][i];
+    item.id = uniqueId(slug(item.title || item.name) || (cur === 'tags' ? 'problem' : 'card'), i);
     const inp = document.querySelector(`[data-i="${i}"][data-k="id"]`);
     if (inp) inp.value = item.id;
     refreshIdMsgs();
@@ -536,8 +616,14 @@ function onField(el, isChange = false) {
   if (el.type === 'checkbox') v = el.checked;
   else if (f && f.t === 'num') v = el.value === '' ? '' : Number(el.value);
   else if (f && f.num) v = Number(el.value);
+  else if (k.startsWith('needs.')) v = Number(el.value);
   else v = el.value;
   setPath(item, k, v);
+  if (k.startsWith('needs.')) {
+    if ('food' in item) delete item.food; // старое поле еды переезжает в нужды
+    const lab = el.closest('.ed-need');
+    if (lab) { lab.classList.toggle('pos', v > 0); lab.classList.toggle('neg', v < 0); }
+  }
   if (k === 'id') refreshIdMsgs();
   if (k.startsWith('effect.')) {
     E.fixDefaults(item.effect);
@@ -597,6 +683,19 @@ $ed.addEventListener('input', e => {
   if (e.target.dataset.k && e.target.tagName !== 'SELECT' && e.target.type !== 'checkbox') onField(e.target);
 });
 $ed.addEventListener('change', async e => {
+  if (e.target.dataset.prob) {
+    const i = +e.target.dataset.i;
+    const k = e.target.dataset.prob;
+    const item = data[cur][i];
+    const arr = new Set(Array.isArray(item[k]) ? item[k] : []);
+    if (e.target.checked) arr.add(e.target.value); else arr.delete(e.target.value);
+    item[k] = [...arr];
+    e.target.closest('.ed-prob')?.classList.toggle('on', e.target.checked);
+    const det = e.target.closest('.ed-item');
+    if (det) { det.querySelector('.ed-badges').innerHTML = badges(SEC[cur], item); det.classList.toggle('mod', changedItem(cur, i)); }
+    saveDraft();
+    return;
+  }
   if (e.target.dataset.pick !== undefined) {
     const i = +e.target.dataset.pick;
     const items = [...(data[cur][i].effect.pool?.items || [])];
