@@ -5,8 +5,8 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=1.8';
-import { loadContent } from './content.js?v=1.8';
+import * as L from './logic.js?v=1.9';
+import { loadContent } from './content.js?v=1.9';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -662,6 +662,7 @@ function renderHome() {
     <button class="btn primary" data-a="join">Войти в лобби</button>
     <div class="or">или</div>
     <button class="btn ghost" data-a="create">Создать своё лобби</button>
+    <a class="home-link" href="editor.html">✏️ Редактор карточек, катастроф и бункера</a>
   </div>`);
 }
 
