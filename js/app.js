@@ -5,11 +5,11 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=2.7';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=2.7';
-import * as E from './effects.js?v=2.7';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=2.7';
-import * as S from './sfx.js?v=2.7';
+import * as L from './logic.js?v=2.9';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=2.9';
+import * as E from './effects.js?v=2.9';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=2.9';
+import * as S from './sfx.js?v=2.9';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -242,9 +242,27 @@ function actionAnim(e) {
 const ACT_SOUND = { swap: 'swap', shuffle_all: 'swap', immunity: 'shield', double_vote: 'action', cancel_vote: 'stamp', revive: 'heart', bunker_reveal: 'bunker' };
 
 // Недавние изменения на карточках — подсвечиваются анимацией
+// Пока идёт окно раскрытия, карточка лежит «рубашкой вверх»; после окна переворачивается один раз.
 const fresh = {};
-function markFresh(id, cls) { fresh[id] = { cls, t: Date.now() }; }
-function freshCls(id) { const f = fresh[id]; return f && Date.now() - f.t < 3000 ? f.cls : ''; }
+const FRESH_MS = 1500;
+function markFresh(id, cls) {
+  delete pend[id]; delete hold[id];
+  fresh[id] = { cls, t: Date.now() };
+  setTimeout(render, FRESH_MS + 50); // убрать класс, чтобы анимация не повторялась при следующих обновлениях
+}
+function freshCls(id) { const f = fresh[id]; return f && Date.now() - f.t < FRESH_MS ? f.cls : ''; }
+// pend — изменение уже пришло в базу, hold — его окно ещё в очереди или на экране
+const pend = {}, hold = {};
+function markPending(id) { if (!pend[id]) { pend[id] = Date.now(); setTimeout(render, 2600); } }
+function isPending(id) { return !!pend[id] && (hold[id] || Date.now() - pend[id] < 2500); }
+// Сравнить старое и новое состояние: что раскрылось и кого изгнали
+function trackChanges(prev, cur) {
+  const pg = prev?.game, cg = cur?.game;
+  if (!pg || !cg || cg.phase === 'end') return;
+  for (const [p, keys] of Object.entries(cg.revealed || {}))
+    for (const k of Object.keys(keys || {})) if (keys[k] && !pg.revealed?.[p]?.[k]) markPending(`${p}:${k}`);
+  for (const [p, a] of Object.entries(cg.alive || {})) if (!a && pg.alive?.[p]) markPending(p);
+}
 
 let seenLog = null;
 function processLog() {
@@ -261,6 +279,7 @@ function notifyEntry(e) {
   if (!e) return;
   if (e.type === 'reveal') {
     const m = TMETA[e.key] || {};
+    if (e.pid && e.key) { markPending(`${e.pid}:${e.key}`); hold[`${e.pid}:${e.key}`] = true; }
     showPopup({ after: () => e.pid && e.key && markFresh(`${e.pid}:${e.key}`, 'fresh'), cls: e.key ? 'pop-trait' : '', fx: 'reveal', color: m.color, back: m.icon, icon: m.icon, top: `${e.who} раскрывает`, label: e.label, value: e.value, sub: e.desc, sound: 'flip', mine: e.pid === me.id });
   }
   else if (e.type === 'action') {
@@ -273,6 +292,7 @@ function notifyEntry(e) {
     showPopup({ after, cls: 'pop-act', fx: 'act', back: '🃏', top: `${e.who} применяет карту`, anim: actionAnim(e), value: e.title, sub: e.sub, sound: 'action', sound2: ACT_SOUND[f.kind], mine });
   }
   else if (e.type === 'exile') {
+    if (e.pid) { markPending(e.pid); hold[e.pid] = true; }
     showPopup({ after: () => e.pid && markFresh(e.pid, 'fresh-dead'), cls: 'exile', fx: 'exile', top: 'Изгнан(а) из бункера', name: e.who, sound: 'exile', mine: e.pid === me.id });
   }
   else if (e.type === 'start') {
@@ -352,7 +372,9 @@ function enterRoom(code, { rejoin = false } = {}) {
   if (location.hash !== '#' + code) history.replaceState(null, '', '#' + code);
   roomUnsub?.();
   roomUnsub = onValue(R(''), snap => {
+    const prev = state;
     state = snap.val();
+    trackChanges(prev, state);
     if (!state) return exitRoom('Лобби больше не существует');
     const p = state.players?.[me.id];
     if (!p || !p.name) return exitRoom('Вас удалили из лобби');
@@ -875,6 +897,49 @@ const FIELDS = [
   { k: 'resultTime', t: 'num', l: 'Показ итога, сек', min: 0, max: 120 },
 ];
 
+// Разделы настроек лобби (сворачиваются)
+const secs = n => n ? `${n} с` : 'без таймера';
+const SECTIONS = [
+  { id: 'people', icon: '👥', title: 'Игроки и бункер', keys: ['hostPlays', 'firstSpeaker', 'slots', 'bunkerFeatures', 'ageMin', 'ageMax'],
+    sum: s => `${s.hostPlays ? 'хост играет' : 'хост только ведёт'} · мест: ${s.slots || 'авто'} · возраст ${s.ageMin}–${s.ageMax}` },
+  { id: 'reveal', icon: '🃏', title: 'Раскрытие характеристик', keys: ['forceProfession', 'firstRoundReveals', 'revealsPerRound', 'exiledRevealsAll'],
+    sum: s => `в 1-м раунде: ${s.firstRoundReveals}, дальше: ${s.revealsPerRound}${s.forceProfession ? ' · сначала профессия' : ''}` },
+  { id: 'vote', icon: '🗳️', title: 'Голосование', keys: ['voteStartRound', 'voteSecret', 'tieRule'],
+    sum: s => `с ${s.voteStartRound}-го раунда · ${s.voteSecret ? 'тайное' : 'открытое'} · ничья: ${({ revote: 'переголосование', random: 'жребий', none: 'никого' })[s.tieRule] || s.tieRule}` },
+  { id: 'cards', icon: '🎴', title: 'Карточки и карты действий', keys: ['darkHumor', 'actionCards', 'actionsPerPlayer', 'showMarkers'],
+    sum: s => `${s.actionCards ? `карт действий: ${s.actionsPerPlayer}` : 'без карт действий'} · ${s.darkHumor ? 'с чёрным юмором' : 'без чёрного юмора'}` },
+  { id: 'timers', icon: '⏱️', title: 'Таймеры', keys: ['speechTime', 'discussionTime', 'voteTime', 'resultTime'],
+    sum: s => `речь ${secs(s.speechTime)} · обсуждение ${secs(s.discussionTime)} · голосование ${secs(s.voteTime)}` },
+  { id: 'final', icon: '🏁', title: 'Финал', keys: ['finalMode', 'finalFates', 'finalExiled'],
+    sum: s => `${s.finalMode === 'story' ? 'только история' : 'история + итог'}${s.finalFates ? ' · судьбы' : ''}${s.finalExiled ? ' · изгнанные' : ''}` },
+];
+const openSecs = new Set((() => { try { return JSON.parse(localStorage.getItem('bunker.openSecs') || '[]'); } catch { return []; } })());
+function toggleSec(id) {
+  openSecs.has(id) ? openSecs.delete(id) : openSecs.add(id);
+  try { localStorage.setItem('bunker.openSecs', JSON.stringify([...openSecs])); } catch {}
+  render();
+}
+function settingsHtml(s, host) {
+  const byKey = Object.fromEntries(FIELDS.map(f => [f.k, f]));
+  const rest = FIELDS.filter(f => !SECTIONS.some(x => x.keys.includes(f.k)));
+  const secList = rest.length ? [...SECTIONS, { id: 'other', icon: '⚙️', title: 'Прочее', keys: rest.map(f => f.k), sum: () => '' }] : SECTIONS;
+  return `<div class="secs">${secList.map(sec => {
+    const open = openSecs.has(sec.id);
+    const fields = sec.keys.map(k => byKey[k]).filter(Boolean);
+    const body = host
+      ? `<div class="sec-body fields">${fields.map(f => settingInput(f, s[f.k], s)).join('')}</div>`
+      : `<ul class="sec-body summary">${fields.map(f => `<li><span>${f.l}</span><b>${esc(settingValueText(f, s[f.k]))}</b></li>`).join('')}</ul>`;
+    return `<section class="sec ${open ? 'open' : ''}">
+      <button class="sec-head" data-a="sec" data-sec="${sec.id}" aria-expanded="${open}">
+        <span class="sec-ico">${sec.icon}</span>
+        <span class="sec-t"><b>${sec.title}</b><span class="sec-sum">${esc(sec.sum(s))}</span></span>
+        <span class="sec-arr">▾</span>
+      </button>
+      ${open ? body : ''}
+    </section>`;
+  }).join('')}</div>`;
+}
+
 async function changeSetting(el) {
   const f = FIELDS.find(x => x.k === el.dataset.set);
   if (!f || !isHost()) return;
@@ -1022,8 +1087,7 @@ function renderLobby() {
     ${packHtml(host)}
     <h2>Настройки</h2>
     <p class="muted small">Играют: ${playing}. Мест в бункере: ${s.slots > 0 ? Math.min(s.slots, Math.max(1, playing - 1)) : autoSlots}${s.slots > 0 ? '' : ' (авто)'}</p>
-    ${host ? `<div class="settings">${FIELDS.map(f => settingInput(f, s[f.k], s)).join('')}</div>`
-      : `<ul class="summary">${FIELDS.map(f => `<li><span>${f.l}</span><b>${esc(settingValueText(f, s[f.k]))}</b></li>`).join('')}</ul>`}
+    ${settingsHtml(s, host)}
     <div class="actions-row">
       ${host ? '<button class="btn primary" data-a="start">Начать игру</button>' : '<p class="muted center">Ждём, пока хост начнёт игру…</p>'}
       <button class="btn ghost" data-a="leave">Выйти из лобби</button>
@@ -1088,14 +1152,17 @@ function traitRows(pid, g, { mine = false } = {}) {
   if (!card) return '';
   const rev = g.revealed[pid] || {};
   const tiles = L.TRAITS.map(t => {
-    const open = !!rev[t.key];
-    if (!mine && !open) return '';
+    const id = `${pid}:${t.key}`;
+    const waiting = !!rev[t.key] && isPending(id);
+    const open = !!rev[t.key] && !waiting;
+    if (!mine && !open && !waiting) return '';
     const m = TMETA[t.key] || {};
+    if (waiting && !mine) return `<div class="tcard closed face-down" style="--tc:${m.color}"><span class="tc-ico">${m.icon}</span><div class="tc-body"><div class="tc-label">${t.label}</div><div class="tc-val">Раскрывается…</div></div></div>`;
     const desc = cardDesc(pid, t.key);
     const ft = showMarkers(g) ? markerChips(rawParts(pid, t.key).map(r => itemIn(t.file, r)), L.foodInfo(g).status === 'short') : '';
-    const btn = mine && !open && L.canReveal(g, pid, t.key) ? `<button class="btn small tc-btn" data-a="reveal" data-key="${t.key}">Раскрыть</button>` : '';
+    const btn = mine && !open && !waiting && L.canReveal(g, pid, t.key) ? `<button class="btn small tc-btn" data-a="reveal" data-key="${t.key}">Раскрыть</button>` : '';
     const chip = mine ? (open ? '<span class="tc-chip on" title="Открыто всем">👁</span>' : '<span class="tc-chip" title="Видите только вы">🔒</span>') : '';
-    return `<div class="tcard ${open ? 'open' : 'closed'} ${freshCls(`${pid}:${t.key}`)}" style="--tc:${m.color}">
+    return `<div class="tcard ${open ? 'open' : 'closed'} ${freshCls(id)}" style="--tc:${m.color}">
       <span class="tc-ico">${m.icon}</span>
       <div class="tc-body">
         <div class="tc-label">${t.label}</div>${ft ? `<div class="tc-marks">${ft}</div>` : ''}
@@ -1225,7 +1292,7 @@ function tabPlayers(g) {
   const s = g.settings;
   return `<div class="players">${g.players.map(p => {
     const pl = state.players?.[p] || {};
-    const alive = g.alive[p];
+    const alive = g.alive[p] || isPending(p);
     const hidden = L.hiddenKeys(g, p).length;
     const voted = g.phase === 'vote' && g.votes[p];
     const voteInfo = g.phase === 'vote' && voted
@@ -1364,6 +1431,8 @@ function prefsHtml() {
   return `<div class="pref-row">Тема оформления<div class="theme-grid">${S.THEMES.map(([k, l, c]) => `<button class="theme-opt ${P.theme === k ? 'on' : ''}" data-pref="theme" data-v="${k}"><span class="theme-sw">${c.map(x => `<i style="background:${x}"></i>`).join('')}</span>${l}</button>`).join('')}</div></div>
     <div class="pref-row">Звуки<div class="seg">${S.SOUND_MODES.map(([k, l]) => `<button class="${P.sound === k ? 'on' : ''}" data-pref="sound" data-v="${k}">${l}</button>`).join('')}</div>
       <span class="small">«Только мои» — звук только когда событие касается вас: ваш ход, карта против вас, финал.</span></div>
+    <div class="pref-row">Анимации<div class="seg">${S.MOTION_MODES.map(([k, l]) => `<button class="${P.motion === k ? 'on' : ''}" data-pref="motion" data-v="${k}">${l}</button>`).join('')}</div>
+      <span class="small">«Меньше» — без переворотов, искр и тряски, только плавное появление. Помогает на слабых телефонах.</span></div>
     <label class="pref-row">Громкость<input type="range" min="0" max="1" step="0.05" value="${P.vol}" data-pref="vol"></label>
     <p class="muted small">Настройки сохраняются на этом устройстве.</p>`;
 }
@@ -1454,6 +1523,7 @@ $app.addEventListener('click', async e => {
       case 'packClear': if (await ask('Вернуть стандартный набор карточек?', 'Вернуть')) await remove(R('content')); break;
       case 'tab': ui.tab = b.dataset.tab; render(); break;
       case 'prefs': await openPrefs(); break;
+      case 'sec': toggleSec(b.dataset.sec); break;
       case 'reveal': await revealMine(b.dataset.key); break;
       case 'done': {
         const g = L.norm(clone(state.game));

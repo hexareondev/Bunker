@@ -10,9 +10,10 @@ export const THEMES = [
   ['rust', 'Ржавчина', ['#1a110d', '#2a1b15', '#e2702e']],
   ['waste', 'Пустошь', ['#e6d6b4', '#f5ebd3', '#a94f24']],
 ];
+export const MOTION_MODES = [['full', 'Все'], ['reduced', 'Меньше'], ['off', 'Выкл']];
 export const SOUND_MODES = [['all', 'Все события'], ['mine', 'Только мои'], ['off', 'Выкл']];
 
-const DEFAULTS = { theme: 'auto', sound: 'all', vol: 0.6 };
+const DEFAULTS = { theme: 'auto', sound: 'all', vol: 0.6, motion: 'full' };
 export const prefs = (() => {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return { ...DEFAULTS }; }
 })();
@@ -20,12 +21,14 @@ export const prefs = (() => {
 export function setPref(k, v) {
   prefs[k] = v;
   try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch {}
-  if (k === 'theme') applyTheme();
+  if (k === 'theme' || k === 'motion') applyTheme();
 }
 export function applyTheme() {
   const t = prefs.theme;
   if (!t || t === 'auto') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = t;
+  if (prefs.motion && prefs.motion !== 'full') document.documentElement.dataset.motion = prefs.motion;
+  else delete document.documentElement.dataset.motion;
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
   const meta = document.querySelector('meta[name=theme-color]');
   if (meta && bg) meta.content = bg;

@@ -63,7 +63,7 @@
     var(--bg);
   background-attachment: fixed;
 }
-[data-theme="rust"] .card, [data-theme="rust"] .banner, [data-theme="rust"] .settings, [data-theme="rust"] .pack,
+[data-theme="rust"] .card, [data-theme="rust"] .sec, [data-theme="rust"] .banner, [data-theme="rust"] .settings, [data-theme="rust"] .pack,
 [data-theme="rust"] .popup, [data-theme="rust"] .dlg, [data-theme="rust"] .modal {
   background-image:
     radial-gradient(circle at 9px 9px, var(--rivet) 2.2px, transparent 2.8px),
@@ -96,7 +96,7 @@
   background-attachment: fixed;
 }
 [data-theme="waste"] .card, [data-theme="waste"] .pcard, [data-theme="waste"] .banner, [data-theme="waste"] .tcard,
-[data-theme="waste"] .settings, [data-theme="waste"] .plist, [data-theme="waste"] .pack, [data-theme="waste"] .popup,
+[data-theme="waste"] .settings, [data-theme="waste"] .sec, [data-theme="waste"] .plist, [data-theme="waste"] .pack, [data-theme="waste"] .popup,
 [data-theme="waste"] .dlg, [data-theme="waste"] .modal {
   box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 3px 10px rgba(90,60,20,.12);
 }

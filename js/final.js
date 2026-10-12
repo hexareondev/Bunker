@@ -1,5 +1,5 @@
 // Финал партии: проблемы, решения, уязвимости, нужды группы, судьбы игроков.
-import { TRAITS, TRAIT_KEYS, aliveIds, norm, foodInfo, monthsText, plural, shuffle, pick } from './logic.js?v=2.7';
+import { TRAITS, TRAIT_KEYS, aliveIds, norm, foodInfo, monthsText, plural, shuffle, pick } from './logic.js?v=2.9';
 
 export const NEEDS = [
   { id: 'food', name: 'Еда', icon: '🍖' },
