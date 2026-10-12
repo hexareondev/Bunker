@@ -5,10 +5,11 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=2.6';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=2.6';
-import * as E from './effects.js?v=2.6';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=2.6';
+import * as L from './logic.js?v=2.7';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=2.7';
+import * as E from './effects.js?v=2.7';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=2.7';
+import * as S from './sfx.js?v=2.7';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -183,25 +184,67 @@ function nextPopup() {
   if (!e) { popupBusy = false; return; }
   popupBusy = true;
   const el = document.createElement('div');
-  el.className = 'popup-bg';
-  el.innerHTML = `<div class="popup ${e.cls || ''}" ${e.color ? `style="--tc:${e.color}"` : ''}>
-    ${e.top ? `<div class="popup-top">${esc(e.top)}</div>` : ''}
-    ${e.icon ? `<div class="popup-ico">${e.icon}</div>` : ''}
-    ${e.label ? `<div class="popup-label">${esc(e.label)}</div>` : ''}
-    ${e.value ? `<div class="popup-value">${esc(e.value)}</div>` : ''}
-    ${e.name ? `<div class="popup-name">${esc(e.name)}</div>` : ''}
-    ${e.sub ? `<div class="popup-sub">${esc(e.sub)}</div>` : ''}
-  </div>`;
+  el.className = `popup-bg fx-${e.fx || 'reveal'}`;
+  if (e.color) el.style.setProperty('--pc', e.color);
+  const n = e.fx === 'exile' ? 0 : e.fx === 'cat' ? 26 : 18;
+  const sparks = Array.from({ length: n }, (_, i) => {
+    const ang = (i / n) * Math.PI * 2 + Math.random() * .5, dist = 110 + Math.random() * 90;
+    const alt = i % 3 === 0 ? 'var(--accent)' : i % 3 === 1 ? '#fff' : 'var(--pc)';
+    return `<i class="spark ${i % 2 ? 'sq' : ''}" style="--dx:${Math.cos(ang) * dist | 0}px;--dy:${Math.sin(ang) * dist | 0}px;--sc:${alt};--sd:${(.72 + Math.random() * .12).toFixed(2)}s"></i>`;
+  }).join('');
+  el.innerHTML = `<div class="fx-flash"></div>
+  <div class="flip">
+    <div class="card-back"><span>${e.back || '?'}</span></div>
+    <div class="popup ${e.cls || ''}" ${e.color ? `style="--tc:${e.color}"` : ''}>
+      ${e.top ? `<div class="popup-top">${esc(e.top)}</div>` : ''}
+      ${e.anim || (e.icon ? `<div class="popup-ico">${e.icon}</div>` : '')}
+      ${e.label ? `<div class="popup-label">${esc(e.label)}</div>` : ''}
+      ${e.value ? `<div class="popup-value">${esc(e.value)}</div>` : ''}
+      ${e.name ? `<div class="popup-name">${esc(e.name)}</div>` : ''}
+      ${e.fx === 'exile' ? '<div class="stamp">ИЗГНАН</div>' : ''}
+      ${e.sub ? `<div class="popup-sub">${esc(e.sub)}</div>` : ''}
+    </div>
+  </div>
+  ${n ? `<div class="ring"></div><div class="sparks">${sparks}</div>` : ''}`;
   let closed = false;
   const close = () => {
     if (closed) return; closed = true;
     el.classList.add('out');
-    setTimeout(() => { el.remove(); nextPopup(); }, 250);
+    setTimeout(() => { el.remove(); if (e.after) { e.after(); render(); } nextPopup(); }, 250);
   };
   el.addEventListener('click', close);
   $ov.appendChild(el);
-  setTimeout(close, e.long ? 6000 : popupQueue.length ? 2200 : 3200);
+  if (e.fx === 'cat') { document.body.classList.remove('quake'); void document.body.offsetWidth; document.body.classList.add('quake'); setTimeout(() => document.body.classList.remove('quake'), 1000); }
+  if (e.sound) S.play(e.sound, { mine: !!e.mine });
+  if (e.sound2) setTimeout(() => S.play(e.sound2, { mine: !!e.mine }), 900);
+  setTimeout(close, e.long ? 6500 : popupQueue.length ? 2600 : 3600);
 }
+
+// Мини-анимация внутри карты действия — по типу эффекта
+function actionAnim(e) {
+  const f = e.fx || {};
+  const g = (cls, glyph, extra = '') => `<div class="fxa ${cls}"><span class="fxa-g">${glyph}</span>${extra}</div>`;
+  switch (f.kind) {
+    case 'swap': return `<div class="fxa fxa-swap"><span class="chip">${esc(f.a || '')}</span><span class="mid">${esc(f.label || '')}</span><span class="chip">${esc(f.b || '')}</span></div>`;
+    case 'shuffle_all': return '<div class="fxa fxa-shuffle"><span class="mini"></span><span class="mini"></span><span class="mini"></span></div>';
+    case 'immunity': return g('fxa-shield', '🛡️');
+    case 'double_vote': return g('fxa-pop', '✌️');
+    case 'cancel_vote': return g('fxa-stamp', '🗳️', '<span class="x">✕</span>');
+    case 'revive': return g('fxa-heart', '❤️');
+    case 'reveal_target': return g('fxa-eye', '👁️');
+    case 'bunker_reveal': return g('fxa-door', '🚪');
+    case 'add': return g('fxa-pop', e.icon || '➕');
+    case 'remove': return g('fxa-crumble', e.icon || '➖');
+    case 'replace': return g('fxa-spin', e.icon || '🔄');
+    default: return g('fxa-pop', e.icon || '🃏');
+  }
+}
+const ACT_SOUND = { swap: 'swap', shuffle_all: 'swap', immunity: 'shield', double_vote: 'action', cancel_vote: 'stamp', revive: 'heart', bunker_reveal: 'bunker' };
+
+// Недавние изменения на карточках — подсвечиваются анимацией
+const fresh = {};
+function markFresh(id, cls) { fresh[id] = { cls, t: Date.now() }; }
+function freshCls(id) { const f = fresh[id]; return f && Date.now() - f.t < 3000 ? f.cls : ''; }
 
 let seenLog = null;
 function processLog() {
@@ -218,28 +261,38 @@ function notifyEntry(e) {
   if (!e) return;
   if (e.type === 'reveal') {
     const m = TMETA[e.key] || {};
-    showPopup({ cls: e.key ? 'pop-trait' : '', color: m.color, icon: m.icon, top: `${e.who} раскрывает`, label: e.label, value: e.value, sub: e.desc });
+    showPopup({ after: () => e.pid && e.key && markFresh(`${e.pid}:${e.key}`, 'fresh'), cls: e.key ? 'pop-trait' : '', fx: 'reveal', color: m.color, back: m.icon, icon: m.icon, top: `${e.who} раскрывает`, label: e.label, value: e.value, sub: e.desc, sound: 'flip', mine: e.pid === me.id });
   }
-  else if (e.type === 'action') showPopup({ cls: 'pop-act', top: `${e.who} применяет карту`, icon: e.icon || '🃏', value: e.title, sub: e.sub });
-  else if (e.type === 'exile') showPopup({ cls: 'exile', top: 'Изгнан(а) из бункера', name: e.who });
+  else if (e.type === 'action') {
+    const f = e.fx || {};
+    const after = () => {
+      if (f.kind === 'swap' && f.key) { markFresh(`${f.pa}:${f.key}`, 'fresh-swap'); markFresh(`${f.pb}:${f.key}`, 'fresh-swap'); }
+      if (f.kind === 'shuffle_all' && f.key) (state?.game?.players || []).forEach(p => markFresh(`${p}:${f.key}`, 'fresh-swap'));
+    };
+    const mine = e.actor === me.id || f.pb === me.id || f.target === me.id || f.kind === 'shuffle_all';
+    showPopup({ after, cls: 'pop-act', fx: 'act', back: '🃏', top: `${e.who} применяет карту`, anim: actionAnim(e), value: e.title, sub: e.sub, sound: 'action', sound2: ACT_SOUND[f.kind], mine });
+  }
+  else if (e.type === 'exile') {
+    showPopup({ after: () => e.pid && markFresh(e.pid, 'fresh-dead'), cls: 'exile', fx: 'exile', top: 'Изгнан(а) из бункера', name: e.who, sound: 'exile', mine: e.pid === me.id });
+  }
   else if (e.type === 'start') {
     ui.tab = 'bunker';
     render();
-    showPopup({ cls: 'cat', top: 'Катастрофа', value: e.title, sub: `${e.catText} Продержаться: ${e.duration}.`, long: true });
+    showPopup({ cls: 'cat', fx: 'cat', back: '☢', top: 'Катастрофа', value: e.title, sub: `${e.catText} Продержаться: ${e.duration}.`, long: true, sound: 'siren', mine: true });
     const fd = featureDesc(e.feature);
     const parts = [];
     if (e.condition) parts.push(`Состояние: ${e.condition}.`);
     if (e.food === -1) parts.push('Еды бесконечно — голод не грозит.');
     else if (e.food) parts.push(`Еды на ${L.monthsText(e.food)}${e.need ? (e.food >= e.need ? ' — хватит.' : ` — не хватит, нужно ${L.monthsText(e.need)}.`) : '.'}`);
     if (e.feature) parts.push(`В бункере есть: ${e.feature}${fd ? '. ' + fd : ''}`);
-    showPopup({ cls: 'info', top: 'Ваш бункер', value: `${e.size} м² · мест: ${e.slots}`, sub: parts.join(' '), long: true });
+    showPopup({ cls: 'info', fx: 'info', back: '🚪', top: 'Ваш бункер', value: `${e.size} м² · мест: ${e.slots}`, sub: parts.join(' '), long: true, sound: 'bunker', mine: true });
   } else if (e.type === 'bunker') {
     const fm = featureFoodMonths(e.feature);
     const sub = [featureDesc(e.feature), fm === 'inf' ? '🍖 Еда: бесконечно' : fm ? `🍖 Еда: ${fm > 0 ? '+' : '−'}${L.monthsText(Math.abs(fm))}` : ''].filter(Boolean).join(' ');
-    showPopup({ cls: 'info', top: e.round ? `Раунд ${e.round}` : 'Бункер', label: 'Открыта особенность бункера', value: e.feature, sub });
+    showPopup({ cls: 'info', fx: 'info', back: '🚪', top: e.round ? `Раунд ${e.round}` : 'Бункер', label: 'Открыта особенность бункера', value: e.feature, sub, sound: 'bunker' });
   }
-  else if (e.type === 'vote' || e.type === 'presence') { if (e.actor !== me.id) toast(e.text, 'small'); }
-  else toast(e.text);
+  else if (e.type === 'vote' || e.type === 'presence') { if (e.actor !== me.id) { toast(e.text, 'small'); if (e.type === 'vote') S.play('vote'); } }
+  else { toast(e.text); S.play('pop'); }
 }
 
 // ---------------- Комнаты ----------------
@@ -410,11 +463,11 @@ async function doAdvance(expectedVersion) {
           for (const k of L.TRAIT_KEYS) {
             if (now_[k] && !was[k]) {
               const value = state.cards?.[sp]?.traits?.[k] || '';
-              addLog(`@${sp}@ (время вышло) раскрыл(а) «${L.traitLabel(k)}»: ${value}`, { type: 'reveal', who: nameOf(sp), key: k, label: L.traitLabel(k), value, desc: cardDesc(sp, k), auto: true });
+              addLog(`@${sp}@ (время вышло) раскрыл(а) «${L.traitLabel(k)}»: ${value}`, { type: 'reveal', pid: sp, who: nameOf(sp), key: k, label: L.traitLabel(k), value, desc: cardDesc(sp, k), auto: true });
             }
           }
         }
-        if (ex) addLog(g.event, { type: 'exile', who: nameOf(ex) });
+        if (ex) addLog(g.event, { type: 'exile', pid: ex, who: nameOf(ex) });
         else if (feat && (g.bunker.shown || 0) > (before?.bunker?.shown || 0)) addLog(`Раунд ${g.round}. В бункере открыто: ${feat}`, { type: 'bunker', round: g.round, feature: feat });
         else if (!/время вышло/.test(g.event)) addLog(g.event, { type: 'game' });
       }
@@ -449,6 +502,7 @@ function tick() {
 }
 setInterval(tick, 500);
 
+let lastTick = '';
 function updateTimer() {
   const el = document.getElementById('timer');
   if (!el || !state?.game) return;
@@ -460,6 +514,12 @@ function updateTimer() {
   const sec = Math.ceil(ms / 1000);
   el.textContent = `${g.paused ? '⏸ ' : ''}${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
   el.className = 'timer' + (sec <= 10 && !g.paused ? ' low' : '');
+  const tk = `${g.phaseEndsAt}:${sec}`;
+  if (!g.paused && sec > 0 && sec <= 5 && tk !== lastTick) {
+    lastTick = tk;
+    const sp = g.phase === 'speech' ? L.currentSpeaker(L.norm(clone(g))) : null;
+    S.play('tick', { mine: sp === me.id || (g.phase === 'vote' && !g.votes?.[me.id] && g.alive?.[me.id]) });
+  }
 }
 
 // ---------------- Действия игрока ----------------
@@ -471,7 +531,7 @@ async function revealMine(key) {
     [`revealedRound/${me.id}`]: increment(1),
   });
   const value = state.cards[me.id].traits[key];
-  addLog(`@${me.id}@ раскрыл(а) «${L.traitLabel(key)}»: ${value}`, { type: 'reveal', actor: me.id, who: me.name, key, label: L.traitLabel(key), value, desc: cardDesc(me.id, key) });
+  addLog(`@${me.id}@ раскрыл(а) «${L.traitLabel(key)}»: ${value}`, { type: 'reveal', pid: me.id, actor: me.id, who: me.name, key, label: L.traitLabel(key), value, desc: cardDesc(me.id, key) });
 }
 
 async function vote(target) {
@@ -680,7 +740,7 @@ async function useAction(i, ctx = {}) {
       if (!k) return toast('У этого игрока уже всё раскрыто', 'warn');
       upd[`game/revealed/${target}/${k}`] = true;
       msg += `: у @${target}@ раскрыто «${L.traitLabel(k)}» — ${cards[target].traits[k]}`;
-      revealExtra = { type: 'reveal', actor: me.id, who: nameOf(target), key: k, label: L.traitLabel(k), value: cards[target].traits[k], desc: cardDesc(target, k) };
+      revealExtra = { type: 'reveal', pid: target, actor: me.id, who: nameOf(target), key: k, label: L.traitLabel(k), value: cards[target].traits[k], desc: cardDesc(target, k) };
       break;
     }
     case 'immunity':
@@ -706,7 +766,11 @@ async function useAction(i, ctx = {}) {
   const prefix = `@${me.id}@ применил(а) карту «${a.title}»`;
   let sub = fillNames(msg.slice(prefix.length)).replace(/^\s*(:|—|и)\s*/, '');
   sub = sub ? sub[0].toUpperCase() + sub.slice(1) : '';
-  addLog(msg, { type: 'action', actor: me.id, who: me.name, title: a.title, sub, icon: actIcon(a),
+  const fx = { kind: e.type === 'change' ? e.op : e.type };
+  if (e.type === 'swap') Object.assign(fx, { a: me.name, b: nameOf(target), pa: me.id, pb: target, key, label });
+  if (e.type === 'shuffle_all') Object.assign(fx, { key });
+  if (target) fx.target = target;
+  addLog(msg, { type: 'action', actor: me.id, who: me.name, title: a.title, sub, icon: actIcon(a), fx,
     ...(revealExtra && revealExtra.label ? { label: revealExtra.label, value: revealExtra.value } : {}) });
 }
 
@@ -752,14 +816,14 @@ async function adminAddTime() {
 }
 async function adminSetAlive(pid, alive) {
   await set(R(`game/alive/${pid}`), alive);
-  addLog(alive ? `Хост вернул в игру @${pid}@` : `Хост исключил @${pid}@`);
+  addLog(alive ? `Хост вернул в игру @${pid}@` : `Хост исключил @${pid}@`, alive ? {} : { type: 'exile', pid, who: nameOf(pid) });
 }
 async function adminReveal(pid) {
   const key = document.getElementById('adm-key-' + pid)?.value;
   if (!key) return;
   await set(R(`game/revealed/${pid}/${key}`), true);
   const value = state.cards[pid].traits[key];
-  addLog(`Хост раскрыл у @${pid}@ «${L.traitLabel(key)}»: ${value}`, { type: 'reveal', actor: me.id, who: nameOf(pid), key, label: L.traitLabel(key), value, desc: cardDesc(pid, key) });
+  addLog(`Хост раскрыл у @${pid}@ «${L.traitLabel(key)}»: ${value}`, { type: 'reveal', pid, actor: me.id, who: nameOf(pid), key, label: L.traitLabel(key), value, desc: cardDesc(pid, key) });
 }
 async function adminReroll(pid) {
   const key = document.getElementById('adm-key-' + pid)?.value;
@@ -858,6 +922,7 @@ function render() {
 
 function renderHome() {
   setHTML(`
+  <button class="gear home-gear" data-a="prefs" title="Настройки">⚙️</button>
   <div class="wrap home">
     <h1 class="logo">БункИИр</h1>
     <p class="muted">Кто достоин выжить после конца света?</p>
@@ -946,7 +1011,7 @@ function renderLobby() {
   <div class="wrap">
     <div class="lobby-head">
       <div><div class="muted small">Код лобби</div><div class="code">${esc(roomCode)}</div></div>
-      <button class="btn small" data-a="copy">Ссылка</button>
+      <div class="lobby-tools"><button class="btn small" data-a="copy">Ссылка</button><button class="gear" data-a="prefs" title="Настройки">⚙️</button></div>
     </div>
     <h2>Игроки · ${ps.length}</h2>
     <p class="muted small">Ходят по кругу сверху вниз.${host ? ' Перетаскивайте игроков за ⠿, чтобы поменять порядок.' : ''}</p>
@@ -1014,7 +1079,8 @@ function phaseBanner(g) {
       if (lines.length) body += `<details class="small"><summary>Кто за кого</summary>${lines.join('<br>')}</details>`;
     }
   }
-  return `<div class="banner">${body}<div class="banner-tools">${nextBtn}</div></div>`;
+  const myTurn = g.phase === 'speech' && L.currentSpeaker(g) === me.id;
+  return `<div class="banner ${myTurn ? 'my-turn' : ''}">${body}<div class="banner-tools">${nextBtn}</div></div>`;
 }
 
 function traitRows(pid, g, { mine = false } = {}) {
@@ -1029,7 +1095,7 @@ function traitRows(pid, g, { mine = false } = {}) {
     const ft = showMarkers(g) ? markerChips(rawParts(pid, t.key).map(r => itemIn(t.file, r)), L.foodInfo(g).status === 'short') : '';
     const btn = mine && !open && L.canReveal(g, pid, t.key) ? `<button class="btn small tc-btn" data-a="reveal" data-key="${t.key}">Раскрыть</button>` : '';
     const chip = mine ? (open ? '<span class="tc-chip on" title="Открыто всем">👁</span>' : '<span class="tc-chip" title="Видите только вы">🔒</span>') : '';
-    return `<div class="tcard ${open ? 'open' : 'closed'}" style="--tc:${m.color}">
+    return `<div class="tcard ${open ? 'open' : 'closed'} ${freshCls(`${pid}:${t.key}`)}" style="--tc:${m.color}">
       <span class="tc-ico">${m.icon}</span>
       <div class="tc-body">
         <div class="tc-label">${t.label}</div>${ft ? `<div class="tc-marks">${ft}</div>` : ''}
@@ -1045,6 +1111,9 @@ function traitRows(pid, g, { mine = false } = {}) {
 
 function renderGame() {
   const g = L.norm(clone(state.game));
+  const turnKey = g.phase === 'speech' && L.currentSpeaker(g) === me.id ? `${roomCode}:${g.round}:${g.turn}` : '';
+  if (turnKey && turnKey !== ui.turnKey) S.play('turn', { mine: true });
+  ui.turnKey = turnKey;
   const playing = g.players.includes(me.id);
   const host = isHost();
   const tabs = [['me', 'Карта'], ['players', 'Игроки'], ['bunker', 'Бункер'], ['log', 'Журнал']];
@@ -1064,7 +1133,7 @@ function renderGame() {
   setHTML(`
   <div class="topbar">
     <div><b>Раунд ${g.round}</b> · ${L.PHASE_NAMES[g.phase] || g.phase}<div class="muted small">Мест: ${g.slots} · в игре: ${L.aliveIds(g).length}${L.foodInfo(g).has ? ` · 🍖 ${L.monthsText(L.foodInfo(g).months, true)}` : ''} · код ${esc(roomCode)}</div></div>
-    <div id="timer" class="timer"></div>
+    <div class="topbar-right"><div id="timer" class="timer"></div><button class="gear" data-a="prefs" title="Настройки">⚙️</button></div>
   </div>
   <div class="wrap game">
     ${phaseBanner(g)}
@@ -1161,7 +1230,7 @@ function tabPlayers(g) {
     const voted = g.phase === 'vote' && g.votes[p];
     const voteInfo = g.phase === 'vote' && voted
       ? (s.voteSecret ? '<span class="tag ok">голос ✓</span>' : `<span class="tag ok">→ ${g.votes[p] === 'abstain' ? 'воздерж.' : esc(nameOf(g.votes[p]))}</span>`) : '';
-    return `<div class="pcard ${alive ? '' : 'dead'} ${L.currentSpeaker(g) === p ? 'speaking' : ''}">
+    return `<div class="pcard ${alive ? '' : 'dead'} ${L.currentSpeaker(g) === p ? 'speaking' : ''} ${freshCls(p)}">
       <div class="phead"><span class="dot ${pl.online ? 'on' : ''}"></span><b>${esc(pl.name || '???')}</b>${p === me.id ? ' <span class="muted">(вы)</span>' : ''}
         ${alive ? '' : '<span class="tag bad">изгнан</span>'}
         ${g.effects.immune[p] === g.round ? '<span class="tag ok">иммунитет</span>' : ''}${voteInfo}</div>
@@ -1266,6 +1335,53 @@ function renderModal(g) {
   </div></div>`;
 }
 
+// Итог игры: конфетти или мрак + звук
+function celebrate(fin) {
+  const lvl = fin.mode === 'story' ? 'story' : fin.verdict?.level;
+  setTimeout(() => {
+    if (lvl === 'good') {
+      S.play('win', { mine: true });
+      const box = document.createElement('div');
+      box.className = 'confetti';
+      const cols = ['var(--accent)', 'var(--ok)', 'var(--warn)', 'var(--act)', '#3b82f6', '#ec4899'];
+      box.innerHTML = Array.from({ length: 70 }, (_, i) => `<i style="left:${Math.random() * 100}%;background:${cols[i % cols.length]};--cd:${(2.2 + Math.random() * 1.8).toFixed(2)}s;--cdl:${(Math.random() * 1.2).toFixed(2)}s;--cx:${(Math.random() * 160 - 80) | 0}px;--cr:${(Math.random() * 900 - 450) | 0}deg"></i>`).join('');
+      $ov.appendChild(box);
+      setTimeout(() => box.remove(), 5500);
+    } else if (lvl === 'losses') S.play('meh', { mine: true });
+    else if (lvl === 'fell' || lvl === 'none') {
+      S.play('lose', { mine: true });
+      const gl = document.createElement('div');
+      gl.className = 'gloom';
+      $ov.appendChild(gl);
+      setTimeout(() => gl.remove(), 2600);
+    }
+  }, 900);
+}
+
+// ---------------- Личные настройки: тема и звук ----------------
+function prefsHtml() {
+  const P = S.prefs;
+  return `<div class="pref-row">Тема оформления<div class="theme-grid">${S.THEMES.map(([k, l, c]) => `<button class="theme-opt ${P.theme === k ? 'on' : ''}" data-pref="theme" data-v="${k}"><span class="theme-sw">${c.map(x => `<i style="background:${x}"></i>`).join('')}</span>${l}</button>`).join('')}</div></div>
+    <div class="pref-row">Звуки<div class="seg">${S.SOUND_MODES.map(([k, l]) => `<button class="${P.sound === k ? 'on' : ''}" data-pref="sound" data-v="${k}">${l}</button>`).join('')}</div>
+      <span class="small">«Только мои» — звук только когда событие касается вас: ваш ход, карта против вас, финал.</span></div>
+    <label class="pref-row">Громкость<input type="range" min="0" max="1" step="0.05" value="${P.vol}" data-pref="vol"></label>
+    <p class="muted small">Настройки сохраняются на этом устройстве.</p>`;
+}
+function openPrefs() { return dialog({ title: 'Настройки', html: `<div class="prefs">${prefsHtml()}</div>`, ok: 'Готово', cancel: '' }); }
+$ov.addEventListener('click', e => {
+  const b = e.target.closest('[data-pref][data-v]');
+  if (!b) return;
+  S.setPref(b.dataset.pref, b.dataset.v);
+  const box = b.closest('.prefs');
+  if (box) box.innerHTML = prefsHtml();
+  if (b.dataset.pref === 'sound' && b.dataset.v !== 'off') S.play('turn', { mine: true });
+});
+$ov.addEventListener('change', e => {
+  if (e.target.dataset?.pref !== 'vol') return;
+  S.setPref('vol', +e.target.value);
+  S.play('flip', { mine: true });
+});
+
 function renderEnd() {
   const g = L.norm(clone(state.game));
   const cards = state.cards || {};
@@ -1298,8 +1414,11 @@ function renderEnd() {
   const exiled = arr(fin?.exiled);
   const exiledHtml = exiled.length ? `<h2>Изгнанные</h2><ul class="fates">${exiled.map(x => `<li class="x-${x.kind}"><span class="f-ico">${x.kind === 'regret' ? '😔' : '👍'}</span><span>${esc(x.text)}</span></li>`).join('')}</ul>` : '';
   const story = arr(fin?.story).length ? arr(fin.story) : arr(state.game.story);
+  if (fin && ui.endAnim?.key !== storyKey) { ui.endAnim = { key: storyKey, t: Date.now() }; celebrate(fin); }
+  const anim = ui.endAnim?.key === storyKey && Date.now() - ui.endAnim.t < 7000 ? 'anim' : '';
   setHTML(`
-  <div class="wrap">
+  <button class="gear home-gear" data-a="prefs" title="Настройки">⚙️</button>
+  <div class="wrap end ${anim}">
     <h1 class="logo small">Финал</h1>
     ${verdict}
     <div class="card story">${story.length ? story.map(x => `<p>${esc(x)}</p>`).join('') : '<p class="muted">Подводим итоги…</p>'}</div>
@@ -1334,6 +1453,7 @@ $app.addEventListener('click', async e => {
       case 'start': await startGame(); break;
       case 'packClear': if (await ask('Вернуть стандартный набор карточек?', 'Вернуть')) await remove(R('content')); break;
       case 'tab': ui.tab = b.dataset.tab; render(); break;
+      case 'prefs': await openPrefs(); break;
       case 'reveal': await revealMine(b.dataset.key); break;
       case 'done': {
         const g = L.norm(clone(state.game));

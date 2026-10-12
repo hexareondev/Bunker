@@ -1,0 +1,128 @@
+/* ============================================================
+   Темы оформления. Тема ставится атрибутом <html data-theme="…">.
+   Без атрибута — «как в системе» (светлая или тёмная).
+   ============================================================ */
+
+/* ---------- Тёмная ---------- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #151514; --surface: #1f1f1d; --text: #ecebe6; --muted: #9a978f; --line: #33322f;
+  --accent: #e07a3f; --accent-text: #151514;
+  --ok: #5fbf85; --bad: #e2675d; --warn: #e0ac46; --act: #a48bff;
+}
+
+/* ---------- Светлая ---------- */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f3ef; --surface: #ffffff; --text: #1d1d1b; --muted: #77756f; --line: #e2e0da;
+  --accent: #c2541a; --accent-text: #ffffff;
+  --ok: #2f7d4f; --bad: #b3372f; --warn: #a8740f; --act: #7a5af8;
+}
+
+/* ---------- Терминал: зелёный фосфор на чёрном ---------- */
+:root[data-theme="terminal"] {
+  color-scheme: dark;
+  --bg: #050b06; --surface: #0a140c; --text: #9dffb0; --muted: #4fa463; --line: #1d4426;
+  --accent: #39ff6a; --accent-text: #021006;
+  --ok: #39ff6a; --bad: #ff5a4e; --warn: #ffd84a; --act: #4ee0ff;
+  --radius: 4px;
+  --font: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+[data-theme="terminal"] body { font-family: var(--font); text-shadow: 0 0 6px color-mix(in srgb, var(--text) 35%, transparent); }
+[data-theme="terminal"] body::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 100;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.18) 0 1px, transparent 1px 3px);
+  mix-blend-mode: multiply;
+}
+[data-theme="terminal"] .btn, [data-theme="terminal"] input, [data-theme="terminal"] select,
+[data-theme="terminal"] .tcard, [data-theme="terminal"] .act, [data-theme="terminal"] .popup, [data-theme="terminal"] .dlg,
+[data-theme="terminal"] .modal, [data-theme="terminal"] .toast, [data-theme="terminal"] .tabs button { border-radius: 3px; }
+[data-theme="terminal"] .btn { text-transform: uppercase; letter-spacing: .06em; font-size: .9rem; }
+[data-theme="terminal"] .btn.primary { box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent); text-shadow: none; }
+[data-theme="terminal"] .logo::before { content: "> "; color: var(--muted); }
+[data-theme="terminal"] .logo::after { content: "_"; animation: caret 1s steps(1) infinite; }
+[data-theme="terminal"] .card, [data-theme="terminal"] .pcard, [data-theme="terminal"] .banner, [data-theme="terminal"] .settings,
+[data-theme="terminal"] .plist, [data-theme="terminal"] .pack { box-shadow: inset 0 0 18px rgba(57,255,106,.05); }
+[data-theme="terminal"] .toast { background: var(--surface); color: var(--text); border: 1px solid var(--accent); }
+[data-theme="terminal"] .tabs button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); text-shadow: none; }
+@keyframes caret { 50% { opacity: 0; } }
+
+/* ---------- Ржавчина: тёплый металл, заклёпки ---------- */
+:root[data-theme="rust"] {
+  color-scheme: dark;
+  --bg: #1a110d; --surface: #2a1b15; --text: #f1dfcf; --muted: #b08f78; --line: #4c3226;
+  --accent: #e2702e; --accent-text: #1a0e08;
+  --ok: #8fc46a; --bad: #ef5a3c; --warn: #f0b54a; --act: #d58cff;
+  --rivet: #6e4a38;
+  --radius: 8px;
+}
+[data-theme="rust"] body {
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(226,112,46,.13), transparent 70%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.012) 0 2px, transparent 2px 6px),
+    var(--bg);
+  background-attachment: fixed;
+}
+[data-theme="rust"] .card, [data-theme="rust"] .banner, [data-theme="rust"] .settings, [data-theme="rust"] .pack,
+[data-theme="rust"] .popup, [data-theme="rust"] .dlg, [data-theme="rust"] .modal {
+  background-image:
+    radial-gradient(circle at 9px 9px, var(--rivet) 2.2px, transparent 2.8px),
+    radial-gradient(circle at calc(100% - 9px) 9px, var(--rivet) 2.2px, transparent 2.8px),
+    radial-gradient(circle at 9px calc(100% - 9px), var(--rivet) 2.2px, transparent 2.8px),
+    radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), var(--rivet) 2.2px, transparent 2.8px),
+    linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.08));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 2px 0 rgba(0,0,0,.35);
+}
+[data-theme="rust"] .btn.primary { background: linear-gradient(180deg, #f08a43, #c8561d); border-color: #a5461a; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 2px 0 #7a3412; }
+[data-theme="rust"] .logo { color: var(--accent); text-shadow: 0 2px 0 #5a2a12, 0 0 24px rgba(226,112,46,.35); font-family: Impact, "Arial Narrow", "Roboto Condensed", system-ui, sans-serif; font-weight: 800; letter-spacing: .14em; }
+[data-theme="rust"] .tabs button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+[data-theme="rust"] .toast { background: #f1dfcf; color: #2a1b15; }
+
+/* ---------- Пустошь: песок, выцветшая бумага ---------- */
+:root[data-theme="waste"] {
+  color-scheme: light;
+  --bg: #e6d6b4; --surface: #f5ebd3; --text: #3a2c1e; --muted: #85705a; --line: #cdb994;
+  --accent: #a94f24; --accent-text: #fff6e6;
+  --ok: #4f7a33; --bad: #a8332a; --warn: #9a6a10; --act: #6d4bb8;
+  --radius: 6px;
+  --font: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+}
+[data-theme="waste"] body {
+  font-family: var(--font);
+  background:
+    radial-gradient(900px 500px at 15% 0%, rgba(255,240,200,.55), transparent 70%),
+    radial-gradient(700px 500px at 100% 100%, rgba(150,100,50,.15), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+}
+[data-theme="waste"] .card, [data-theme="waste"] .pcard, [data-theme="waste"] .banner, [data-theme="waste"] .tcard,
+[data-theme="waste"] .settings, [data-theme="waste"] .plist, [data-theme="waste"] .pack, [data-theme="waste"] .popup,
+[data-theme="waste"] .dlg, [data-theme="waste"] .modal {
+  box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 3px 10px rgba(90,60,20,.12);
+}
+[data-theme="waste"] .card, [data-theme="waste"] .banner, [data-theme="waste"] .popup, [data-theme="waste"] .dlg {
+  background-image: linear-gradient(180deg, rgba(255,255,255,.35), rgba(160,120,60,.06));
+}
+[data-theme="waste"] .tcard.closed, [data-theme="waste"] .plist li { border-style: dashed; }
+[data-theme="waste"] .tcard.closed { border-left-style: solid; }
+[data-theme="waste"] .logo { font-style: italic; letter-spacing: .08em; color: var(--accent); text-shadow: 1px 1px 0 rgba(255,255,255,.6); }
+[data-theme="waste"] h2 { font-variant: small-caps; letter-spacing: .04em; }
+[data-theme="waste"] .tabs button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+[data-theme="waste"] .toast { background: #3a2c1e; color: #f5ebd3; }
+
+/* ---------- Окно настроек ---------- */
+.theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 4px 0 14px; }
+.theme-opt { font: inherit; font-size: .78rem; font-weight: 600; color: var(--text); background: var(--bg); border: 2px solid var(--line); border-radius: 10px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.theme-opt.on { border-color: var(--accent); }
+.theme-sw { width: 100%; height: 34px; border-radius: 6px; display: flex; overflow: hidden; border: 1px solid rgba(128,128,128,.3); }
+.theme-sw i { flex: 1; }
+.pref-row { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; color: var(--muted); margin-bottom: 12px; }
+.pref-row input[type=range] { padding: 0; accent-color: var(--accent); }
+.seg { display: flex; gap: 4px; }
+.seg button { flex: 1; font: inherit; font-size: .8rem; font-weight: 600; padding: 8px 4px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); cursor: pointer; }
+.seg button.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.gear { font: inherit; font-size: 1.15rem; line-height: 1; background: transparent; border: 1px solid var(--line); color: var(--text); border-radius: 10px; padding: 7px 9px; cursor: pointer; flex: none; }
+.home-gear { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; z-index: 6; background: var(--surface); }
+.topbar .gear { padding: 5px 7px; font-size: 1rem; }
+.topbar-right { display: flex; align-items: center; gap: 8px; flex: none; }
+.lobby-tools { display: flex; gap: 8px; align-items: center; }

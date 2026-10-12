@@ -1,5 +1,5 @@
-import { makeZip, downloadBlob, readZip } from './zip.js?v=2.6';
-import * as E from './effects.js?v=2.6';
+import { makeZip, downloadBlob, readZip } from './zip.js?v=2.7';
+import * as E from './effects.js?v=2.7';
 
 // ---------------- Описание разделов ----------------
 const NEEDS = [['food', '🍖', 'Еда'], ['medicine', '🩺', 'Медицина'], ['repair', '🔧', 'Ремонт'], ['defense', '🛡️', 'Защита'], ['morale', '🙂', 'Мораль'], ['reproduction', '👶', 'Род']];

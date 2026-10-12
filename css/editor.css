@@ -54,7 +54,7 @@
 /* ссылка с главной */
 .home-link { display: block; text-align: center; margin-top: 18px; color: var(--muted); font-size: .88rem; text-decoration: none; }
 .home-link:hover { color: var(--accent); }
-.ed-preview { font-size: .86rem; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, #7a5af8 8%, var(--bg)); border: 1px solid color-mix(in srgb, #7a5af8 35%, var(--line)); }
+.ed-preview { font-size: .86rem; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--act) 8%, var(--bg)); border: 1px solid color-mix(in srgb, var(--act) 35%, var(--line)); }
 .ed-warn { margin-top: 4px; color: var(--bad); font-weight: 600; }
 .ed-sub { display: block; font-size: .75rem; color: var(--muted); margin-top: 3px; }
 .ed-gen { margin-left: 6px; font: inherit; font-size: .75rem; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
@@ -62,14 +62,14 @@
 /* выбор значений пула */
 .pick { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .pick-chips { display: flex; flex-wrap: wrap; gap: 5px; }
-.pick-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border-radius: 999px; font-size: .82rem; font-weight: 600; color: var(--text); background: color-mix(in srgb, #7a5af8 14%, var(--surface)); border: 1px solid color-mix(in srgb, #7a5af8 40%, var(--line)); }
+.pick-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 10px; border-radius: 999px; font-size: .82rem; font-weight: 600; color: var(--text); background: color-mix(in srgb, var(--act) 14%, var(--surface)); border: 1px solid color-mix(in srgb, var(--act) 40%, var(--line)); }
 .pick-chip button { font: inherit; line-height: 1; width: 20px; height: 20px; border-radius: 50%; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
 .pick-chip button:hover { background: var(--bad); color: #fff; }
 .pick-q { padding: 8px 10px !important; font-size: .88rem; }
 .pick-list { max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
 .pick-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--line); font-size: .88rem; color: var(--text); cursor: pointer; }
 .pick-row:last-child { border-bottom: 0; }
-.pick-row input { width: 18px; height: 18px; flex: none; accent-color: #7a5af8; }
+.pick-row input { width: 18px; height: 18px; flex: none; accent-color: var(--act); }
 
 /* ---------- Меню разделов ---------- */
 .ed-head { display: flex; gap: 8px; align-items: stretch; margin-bottom: 10px; position: relative; }
