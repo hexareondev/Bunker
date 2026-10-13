@@ -30,6 +30,8 @@ export const DEFAULT_SETTINGS = {
   finalMode: 'full',      // 'full' — история + итог, 'story' — только история
   finalFates: true,       // судьба каждого выжившего
   finalExiled: true,      // учитывать изгнанных в финале
+  narration: 'host',      // озвучка: host — читает устройство хоста, all — все, off — выключена
+  narrateFinal: true,     // зачитывать историю финала
   showMarkers: false,     // метки нужд и проблем на карточках видны во время игры
   actionCards: true,
   actionsPerPlayer: 2,

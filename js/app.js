@@ -5,11 +5,12 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=2.9';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=2.9';
-import * as E from './effects.js?v=2.9';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=2.9';
-import * as S from './sfx.js?v=2.9';
+import * as L from './logic.js?v=3.0';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.0';
+import * as E from './effects.js?v=3.0';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.0';
+import * as S from './sfx.js?v=3.0';
+import * as T from './tts.js?v=3.0';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -275,6 +276,57 @@ function processLog() {
     notifyEntry(log[k]);
   }
 }
+// ---------------- Озвучка ----------------
+function narrMode() { return (state?.game?.settings || state?.settings || {}).narration || L.DEFAULT_SETTINGS.narration; }
+function shouldNarrate() {
+  if (!T.supported || S.prefs.tts === 'off') return false;
+  const m = narrMode();
+  return m === 'all' || (m === 'host' && isHost());
+}
+function narrate(text, opts) { if (shouldNarrate() && text) T.speak(text, opts); }
+const dot = t => { t = String(t || '').trim(); return !t || /[.!?…]$/.test(t) ? t : t + '.'; };
+function sayCatastrophe(g) {
+  const c = g.catastrophe || {};
+  return `Катастрофа. ${dot(c.title)} ${dot(c.text)} Продержаться нужно: ${dot(c.duration)}`;
+}
+function sayFeature(f) {
+  const fm = featureFoodMonths(f);
+  const food = fm === 'inf' ? 'Еды теперь бесконечно.' : fm > 0 ? `Еды прибавится на ${L.monthsText(fm)}.` : fm < 0 ? `Еды убавится на ${L.monthsText(-fm)}.` : '';
+  return `${dot(f)} ${dot(featureDesc(f))} ${food}`;
+}
+function sayBunker(g) {
+  const b = g.bunker, fi = L.foodInfo(g);
+  const parts = [`Ваш бункер. Площадь ${b.size} квадратных метров. Мест: ${g.slots}.`];
+  if (b.condition) parts.push(`Состояние: ${dot(b.condition.text)} ${dot(b.condition.desc)}`);
+  if (fi.has) {
+    if (fi.infinite) parts.push('Еда: неиссякаемый источник, голод не грозит.');
+    else if (fi.status === 'ok') parts.push(`Еды на ${L.monthsText(fi.months)}, этого хватит на весь срок.`);
+    else if (fi.status === 'short') parts.push(`Еды на ${L.monthsText(fi.months)}, а нужно ${L.monthsText(fi.need)}. Не хватит.`);
+    else parts.push(`Еды на ${L.monthsText(fi.months)}.`);
+  }
+  const open = b.features.slice(0, b.shown);
+  if (open.length) parts.push(`${open.length > 1 ? 'Открытые особенности' : 'В бункере есть'}: ${open.map(sayFeature).join(' ')}`);
+  const hidden = b.features.length - b.shown;
+  if (hidden > 0) parts.push(`Ещё ${hidden} ${L.plural(hidden, 'особенность откроется', 'особенности откроются', 'особенностей откроются')} позже.`);
+  return parts.join(' ');
+}
+function sayFinal() {
+  const fin = state?.game?.final;
+  if (!fin) return '';
+  const arr = v => (Array.isArray(v) ? v : v ? Object.values(v) : []);
+  const story = arr(fin.story).length ? arr(fin.story) : arr(state.game.story);
+  const head = fin.mode !== 'story' && fin.verdict ? `${dot(fin.verdict.title)} ${dot(fin.verdict.text)} ` : '';
+  return head + story.map(dot).join(' ');
+}
+function sayAgain(what) {
+  const g = state?.game ? L.norm(clone(state.game)) : null;
+  if (!g) return;
+  const text = what === 'cat' ? sayCatastrophe(g) : what === 'bunker' ? sayBunker(g) : what === 'final' ? sayFinal() : '';
+  if (!T.supported) return toast('Этот браузер не умеет читать вслух', 'warn');
+  if (!T.speak(text, { interrupt: true })) toast('На этом устройстве нет русского голоса для озвучки', 'warn');
+}
+const sayBtn = what => T.supported ? `<button class="say" data-a="say" data-say="${what}" title="Прочитать вслух">🔊</button>` : '';
+
 function notifyEntry(e) {
   if (!e) return;
   if (e.type === 'reveal') {
@@ -298,6 +350,7 @@ function notifyEntry(e) {
   else if (e.type === 'start') {
     ui.tab = 'bunker';
     render();
+    if (shouldNarrate()) setTimeout(() => { const g = state?.game ? L.norm(clone(state.game)) : null; if (g) { T.stop(); narrate(sayCatastrophe(g)); narrate(sayBunker(g)); } }, 1800);
     showPopup({ cls: 'cat', fx: 'cat', back: '☢', top: 'Катастрофа', value: e.title, sub: `${e.catText} Продержаться: ${e.duration}.`, long: true, sound: 'siren', mine: true });
     const fd = featureDesc(e.feature);
     const parts = [];
@@ -309,6 +362,7 @@ function notifyEntry(e) {
   } else if (e.type === 'bunker') {
     const fm = featureFoodMonths(e.feature);
     const sub = [featureDesc(e.feature), fm === 'inf' ? '🍖 Еда: бесконечно' : fm ? `🍖 Еда: ${fm > 0 ? '+' : '−'}${L.monthsText(Math.abs(fm))}` : ''].filter(Boolean).join(' ');
+    narrate(`${e.round ? `Раунд ${e.round}. ` : ''}Открыта особенность бункера: ${sayFeature(e.feature)}`);
     showPopup({ cls: 'info', fx: 'info', back: '🚪', top: e.round ? `Раунд ${e.round}` : 'Бункер', label: 'Открыта особенность бункера', value: e.feature, sub, sound: 'bunker' });
   }
   else if (e.type === 'vote' || e.type === 'presence') { if (e.actor !== me.id) { toast(e.text, 'small'); if (e.type === 'vote') S.play('vote'); } }
@@ -405,6 +459,7 @@ function setupPresence() {
 }
 
 function exitRoom(msg) {
+  T.stop();
   roomUnsub?.(); presenceUnsub?.();
   roomUnsub = presenceUnsub = null;
   if (roomCode) onDisconnect(R('')).cancel().catch(() => {});
@@ -895,6 +950,8 @@ const FIELDS = [
   { k: 'discussionTime', t: 'num', l: 'Обсуждение, сек', min: 0, max: 1800 },
   { k: 'voteTime', t: 'num', l: 'Голосование, сек', min: 0, max: 600 },
   { k: 'resultTime', t: 'num', l: 'Показ итога, сек', min: 0, max: 120 },
+  { k: 'narration', t: 'select', l: 'Кто зачитывает катастрофу, бункер и новые особенности', opts: { host: 'Телефон хоста (все в одной комнате)', all: 'Каждое устройство (игра по видеосвязи)', off: 'Никто' } },
+  { k: 'narrateFinal', t: 'check', l: 'Зачитывать историю в финале' },
 ];
 
 // Разделы настроек лобби (сворачиваются)
@@ -910,6 +967,8 @@ const SECTIONS = [
     sum: s => `${s.actionCards ? `карт действий: ${s.actionsPerPlayer}` : 'без карт действий'} · ${s.darkHumor ? 'с чёрным юмором' : 'без чёрного юмора'}` },
   { id: 'timers', icon: '⏱️', title: 'Таймеры', keys: ['speechTime', 'discussionTime', 'voteTime', 'resultTime'],
     sum: s => `речь ${secs(s.speechTime)} · обсуждение ${secs(s.discussionTime)} · голосование ${secs(s.voteTime)}` },
+  { id: 'voice', icon: '🔊', title: 'Озвучка', keys: ['narration', 'narrateFinal'],
+    sum: s => `${({ host: 'читает хост', all: 'читают все', off: 'выключена' })[s.narration] || 'читает хост'}${s.narration !== 'off' && s.narrateFinal ? ' · финал тоже' : ''}` },
   { id: 'final', icon: '🏁', title: 'Финал', keys: ['finalMode', 'finalFates', 'finalExiled'],
     sum: s => `${s.finalMode === 'story' ? 'только история' : 'история + итог'}${s.finalFates ? ' · судьбы' : ''}${s.finalExiled ? ' · изгнанные' : ''}` },
 ];
@@ -1332,8 +1391,8 @@ function tabBunker(g) {
   const c = g.catastrophe || {};
   const f = g.bunker.features;
   return `
-    <div class="card"><div class="tl">Катастрофа</div><h3>${esc(c.title)}</h3><p>${esc(c.text)}</p><p class="muted">Нужно продержаться: <b>${esc(c.duration)}</b></p></div>
-    <div class="card"><div class="tl">Бункер</div>
+    <div class="card"><div class="tl">Катастрофа ${sayBtn('cat')}</div><h3>${esc(c.title)}</h3><p>${esc(c.text)}</p><p class="muted">Нужно продержаться: <b>${esc(c.duration)}</b></p></div>
+    <div class="card"><div class="tl">Бункер ${sayBtn('bunker')}</div>
       <p>Площадь: <b>${g.bunker.size} м²</b> · Мест: <b>${g.slots}</b>${foodLine(g)}</p>
       ${g.bunker.condition ? `<div class="cond"><span class="cond-label">Состояние</span><b>${esc(g.bunker.condition.text)}</b>${g.bunker.condition.desc ? `<span class="feat-desc">${esc(g.bunker.condition.desc)}</span>` : ''}</div>` : ''}
       ${foodNote(g)}
@@ -1405,6 +1464,8 @@ function renderModal(g) {
 // Итог игры: конфетти или мрак + звук
 function celebrate(fin) {
   const lvl = fin.mode === 'story' ? 'story' : fin.verdict?.level;
+  const gs = state?.game?.settings || {};
+  if (gs.narrateFinal !== false) setTimeout(() => narrate(sayFinal(), { interrupt: true }), 2600);
   setTimeout(() => {
     if (lvl === 'good') {
       S.play('win', { mine: true });
@@ -1433,10 +1494,27 @@ function prefsHtml() {
       <span class="small">«Только мои» — звук только когда событие касается вас: ваш ход, карта против вас, финал.</span></div>
     <div class="pref-row">Анимации<div class="seg">${S.MOTION_MODES.map(([k, l]) => `<button class="${P.motion === k ? 'on' : ''}" data-pref="motion" data-v="${k}">${l}</button>`).join('')}</div>
       <span class="small">«Меньше» — без переворотов, искр и тряски, только плавное появление. Помогает на слабых телефонах.</span></div>
-    <label class="pref-row">Громкость<input type="range" min="0" max="1" step="0.05" value="${P.vol}" data-pref="vol"></label>
+    ${ttsPrefsHtml()}
+    <label class="pref-row">Громкость звуков<input type="range" min="0" max="1" step="0.05" value="${P.vol}" data-pref="vol"></label>
     <p class="muted small">Настройки сохраняются на этом устройстве.</p>`;
 }
-function openPrefs() { return dialog({ title: 'Настройки', html: `<div class="prefs">${prefsHtml()}</div>`, ok: 'Готово', cancel: '' }); }
+function ttsPrefsHtml() {
+  const P = S.prefs;
+  if (!T.supported) return '<div class="pref-row">Озвучка<span class="small">Этот браузер не умеет читать вслух.</span></div>';
+  const vs = T.ruVoices();
+  const cur = vs.find(v => v.voiceURI === P.ttsVoice) ? P.ttsVoice : '';
+  const mode = narrMode();
+  const who = mode === 'off' ? 'В этом лобби озвучка выключена.' : mode === 'all' ? 'В этом лобби читают все устройства.' : 'В этом лобби читает только телефон хоста.';
+  return `<div class="pref-row">Озвучка на этом устройстве<div class="seg">${[['on', 'Вкл'], ['off', 'Выкл']].map(([k, l]) => `<button class="${(P.tts || 'on') === k ? 'on' : ''}" data-pref="tts" data-v="${k}">${l}</button>`).join('')}</div>
+      ${state ? `<span class="small">${who} Кто читает, выбирает хост в настройках лобби.</span>` : ''}</div>
+    ${vs.length ? `<label class="pref-row">Голос<select data-pref-sel="ttsVoice"><option value="">Автоматически</option>${vs.map(v => `<option value="${esc(v.voiceURI)}" ${cur === v.voiceURI ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select></label>
+    <label class="pref-row">Скорость речи<input type="range" min="0.7" max="1.5" step="0.05" value="${P.ttsRate || 1}" data-pref="ttsRate"></label>
+    <button class="btn small" data-tts-test>▶ Проверить голос</button>` : '<span class="small muted">На этом устройстве нет русского голоса. На Android его можно скачать в настройках «Синтез речи», на iPhone — в «Универсальный доступ → Устный контент».</span>'}`;
+}
+function openPrefs() {
+  // голоса в Chrome подгружаются не сразу — обновим окно, когда появятся
+  if (T.supported && !T.ruVoices().length) setTimeout(() => { const box = document.querySelector('.prefs'); if (box && T.ruVoices().length) box.innerHTML = prefsHtml(); }, 700);
+  return dialog({ title: 'Настройки', html: `<div class="prefs">${prefsHtml()}</div>`, ok: 'Готово', cancel: '' }); }
 $ov.addEventListener('click', e => {
   const b = e.target.closest('[data-pref][data-v]');
   if (!b) return;
@@ -1444,8 +1522,16 @@ $ov.addEventListener('click', e => {
   const box = b.closest('.prefs');
   if (box) box.innerHTML = prefsHtml();
   if (b.dataset.pref === 'sound' && b.dataset.v !== 'off') S.play('turn', { mine: true });
+  if (b.dataset.pref === 'tts' && b.dataset.v === 'off') T.stop();
+});
+$ov.addEventListener('click', e => {
+  if (!e.target.closest('[data-tts-test]')) return;
+  if (!T.speak('Внимание, жители бункера. Двери закроются через одну минуту.', { interrupt: true })) toast('Нет русского голоса на этом устройстве', 'warn');
 });
 $ov.addEventListener('change', e => {
+  const sel = e.target.dataset?.prefSel;
+  if (sel) { S.setPref(sel, e.target.value); T.speak('Голос выбран.', { interrupt: true }); return; }
+  if (e.target.dataset?.pref === 'ttsRate') { S.setPref('ttsRate', +e.target.value); T.speak('Так звучит новая скорость.', { interrupt: true }); return; }
   if (e.target.dataset?.pref !== 'vol') return;
   S.setPref('vol', +e.target.value);
   S.play('flip', { mine: true });
@@ -1490,7 +1576,7 @@ function renderEnd() {
   <div class="wrap end ${anim}">
     <h1 class="logo small">Финал</h1>
     ${verdict}
-    <div class="card story">${story.length ? story.map(x => `<p>${esc(x)}</p>`).join('') : '<p class="muted">Подводим итоги…</p>'}</div>
+    <div class="card story">${story.length ? `<div class="tl">История ${sayBtn('final')}</div>` : ''}${story.length ? story.map(x => `<p>${esc(x)}</p>`).join('') : '<p class="muted">Подводим итоги…</p>'}</div>
     ${needsHtml}${probsHtml}${fatesHtml}${exiledHtml}
     <h2>Выжившие · ${surv.length}</h2><div class="players">${block(surv)}</div>
     <h2>Остались снаружи · ${out.length}</h2><div class="players">${block(out)}</div>
@@ -1524,6 +1610,7 @@ $app.addEventListener('click', async e => {
       case 'tab': ui.tab = b.dataset.tab; render(); break;
       case 'prefs': await openPrefs(); break;
       case 'sec': toggleSec(b.dataset.sec); break;
+      case 'say': sayAgain(b.dataset.say); break;
       case 'reveal': await revealMine(b.dataset.key); break;
       case 'done': {
         const g = L.norm(clone(state.game));

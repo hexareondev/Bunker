@@ -528,3 +528,9 @@ body.quake #app { animation: quake .9s both; }
 [data-motion="off"] *, [data-motion="off"] *::before, [data-motion="off"] *::after { animation: none !important; transition: none !important; }
 [data-motion="off"] .card-back, [data-motion="off"] .sparks, [data-motion="off"] .ring, [data-motion="off"] .fx-flash,
 [data-motion="off"] .confetti, [data-motion="off"] .gloom { display: none !important; }
+
+/* кнопка «прочитать вслух» */
+.say { font: inherit; font-size: .95rem; line-height: 1; background: none; border: 0; padding: 2px 4px; margin-left: 4px; cursor: pointer; vertical-align: -1px; border-radius: 6px; }
+.say:hover, .say:focus-visible { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.prefs select { padding: 8px 10px; }
+.dlg { max-height: 90vh; overflow-y: auto; }
