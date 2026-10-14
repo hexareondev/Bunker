@@ -1,5 +1,5 @@
-import { makeZip, downloadBlob, readZip } from './zip.js?v=3.0';
-import * as E from './effects.js?v=3.0';
+import { makeZip, downloadBlob, readZip } from './zip.js?v=3.1';
+import * as E from './effects.js?v=3.1';
 
 // ---------------- Описание разделов ----------------
 const NEEDS = [['food', '🍖', 'Еда'], ['medicine', '🩺', 'Медицина'], ['repair', '🔧', 'Ремонт'], ['defense', '🛡️', 'Защита'], ['morale', '🙂', 'Мораль'], ['reproduction', '👶', 'Род']];
@@ -85,6 +85,7 @@ const SECTIONS = [
     { k: 'effect.value', l: 'Значение', t: 'text', re: true, list: true, show: ef => E.hasModes(ef) && ef.mode === 'fixed' },
     { k: 'effect.infinite', l: '🍖 Бесконечно — еды хватит на любой срок', t: 'check', re: true, show: ef => ef.type === 'change' && ef.object === 'food' && ef.op !== 'remove' },
     { k: 'effect.amount', l: 'Сколько (мест или месяцев еды)', t: 'num', re: true, show: ef => E.isNumeric(ef) && !ef.infinite },
+    { k: 'when', l: 'Когда можно сыграть', t: 'select', opts: E.WHEN_OPTS, re: true },
     { k: 'id', l: 'ID (латиницей, уникальный)', t: 'id', req: true },
     { k: 'dark', l: 'Чёрный юмор', t: 'check' },
   ] },
@@ -425,7 +426,7 @@ function itemHtml(sec, x, i) {
     <summary><span class="ed-sum">${summaryText(sec, x)}</span><span class="ed-badges">${badges(sec, x)}</span></summary>
     <div class="ed-fields">
       ${sec.fields.map(f => fieldHtml(f, x, i)).join('')}
-      ${sec.f === 'actions' ? `<div class="ed-preview"><b>Как сработает:</b> ${esc(E.describeEffect(x.effect))}${E.effectIssues(x.effect).length ? `<div class="ed-warn">⚠ ${esc(E.effectIssues(x.effect).join(', '))}</div>` : ''}</div>` : ''}
+      ${sec.f === 'actions' ? `<div class="ed-preview"><b>Как сработает:</b> ${esc(E.describeEffect(x.effect))}${x.when && x.when !== 'alive' ? ` ${esc(E.whenText(x.when))}` : ''}${E.effectIssues(x.effect).length ? `<div class="ed-warn">⚠ ${esc(E.effectIssues(x.effect).join(', '))}</div>` : ''}</div>` : ''}
       <div class="ed-item-btns">
         <button class="btn small ghost" data-a="dup" data-i="${i}">Дублировать</button>
         <button class="btn small ghost danger-text" data-a="del" data-i="${i}">Удалить</button>
@@ -648,7 +649,7 @@ function onField(el, isChange = false) {
 }
 function previewHtml(x) {
   const iss = E.effectIssues(x.effect);
-  return `<div class="ed-preview"><b>Как сработает:</b> ${esc(E.describeEffect(x.effect))}${iss.length ? `<div class="ed-warn">⚠ ${esc(iss.join(', '))}</div>` : ''}</div>`;
+  return `<div class="ed-preview"><b>Как сработает:</b> ${esc(E.describeEffect(x.effect))}${x.when && x.when !== 'alive' ? ` ${esc(E.whenText(x.when))}` : ''}${iss.length ? `<div class="ed-warn">⚠ ${esc(iss.join(', '))}</div>` : ''}</div>`;
 }
 let rerendering = false;
 function rerenderItem(det, i) {

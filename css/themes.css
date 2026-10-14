@@ -110,6 +110,93 @@
 [data-theme="waste"] .tabs button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 [data-theme="waste"] .toast { background: #3a2c1e; color: #f5ebd3; }
 
+/* ---------- Сакура: светлая розовая ---------- */
+:root[data-theme="sakura"] {
+  color-scheme: light;
+  --bg: #fbeef3; --surface: #fff8fb; --text: #3d2330; --muted: #9a6b80; --line: #f0d2df;
+  --accent: #e0457b; --accent-text: #ffffff;
+  --ok: #2f8a5f; --bad: #c62f4a; --warn: #b7791f; --act: #8b5cf6;
+  --radius: 16px;
+}
+[data-theme="sakura"] body {
+  background:
+    radial-gradient(500px 360px at 0% 0%, rgba(255,182,206,.45), transparent 70%),
+    radial-gradient(520px 420px at 100% 100%, rgba(255,205,225,.5), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+}
+[data-theme="sakura"] .btn, [data-theme="sakura"] input, [data-theme="sakura"] select { border-radius: 14px; }
+[data-theme="sakura"] .btn.primary { background: linear-gradient(135deg, #f06292, #e0457b); border-color: #d63c72; box-shadow: 0 4px 14px rgba(224,69,123,.3); }
+[data-theme="sakura"] .card, [data-theme="sakura"] .pcard, [data-theme="sakura"] .banner, [data-theme="sakura"] .sec, [data-theme="sakura"] .plist,
+[data-theme="sakura"] .pack, [data-theme="sakura"] .popup, [data-theme="sakura"] .dlg { box-shadow: 0 3px 14px rgba(224,69,123,.08); }
+[data-theme="sakura"] .logo { color: var(--accent); }
+[data-theme="sakura"] .logo::after { content: " 🌸"; font-size: .6em; vertical-align: middle; }
+[data-theme="sakura"] .tabs button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+[data-theme="sakura"] .toast { background: #3d2330; color: #fff0f6; }
+
+/* ---------- Неон: тёмная розовая (синтвейв) ---------- */
+:root[data-theme="neon"] {
+  color-scheme: dark;
+  --bg: #140a1c; --surface: #20112d; --text: #fbe7ff; --muted: #b58fc6; --line: #3d2350;
+  --accent: #ff4fa3; --accent-text: #1a0612;
+  --ok: #4ef0b0; --bad: #ff5a6e; --warn: #ffc857; --act: #8f7bff;
+  --radius: 12px;
+}
+[data-theme="neon"] body {
+  background:
+    radial-gradient(800px 420px at 50% -10%, rgba(255,79,163,.22), transparent 70%),
+    radial-gradient(700px 400px at 50% 110%, rgba(79,209,255,.14), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+}
+[data-theme="neon"] .btn.primary { box-shadow: 0 0 16px rgba(255,79,163,.55), inset 0 0 0 1px rgba(255,255,255,.2); }
+[data-theme="neon"] .logo { color: #ffd6ec; text-shadow: 0 0 6px #ff4fa3, 0 0 18px #ff4fa3, 0 0 36px rgba(79,209,255,.6); }
+[data-theme="neon"] .card, [data-theme="neon"] .banner, [data-theme="neon"] .sec, [data-theme="neon"] .pcard, [data-theme="neon"] .popup, [data-theme="neon"] .dlg { box-shadow: 0 0 0 1px rgba(255,79,163,.08), 0 6px 24px rgba(0,0,0,.35); }
+[data-theme="neon"] .tabs button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); box-shadow: 0 0 12px rgba(255,79,163,.5); }
+[data-theme="neon"] .timer { text-shadow: 0 0 10px rgba(255,79,163,.6); }
+
+/* ---------- Мята: светлая бирюзовая ---------- */
+:root[data-theme="mint"] {
+  color-scheme: light;
+  --bg: #e8f6f2; --surface: #f8fffd; --text: #10332c; --muted: #5c857b; --line: #cbe6de;
+  --accent: #0f9b8a; --accent-text: #ffffff;
+  --ok: #2f8a4f; --bad: #c8443a; --warn: #b07a12; --act: #6a5be0;
+  --radius: 14px;
+}
+[data-theme="mint"] body {
+  background:
+    radial-gradient(600px 400px at 100% 0%, rgba(110,231,200,.35), transparent 70%),
+    radial-gradient(600px 420px at 0% 100%, rgba(150,220,240,.3), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+}
+[data-theme="mint"] .btn.primary { background: linear-gradient(135deg, #14b8a6, #0f9b8a); border-color: #0d8a7b; box-shadow: 0 4px 14px rgba(15,155,138,.28); }
+[data-theme="mint"] .card, [data-theme="mint"] .pcard, [data-theme="mint"] .banner, [data-theme="mint"] .sec, [data-theme="mint"] .plist,
+[data-theme="mint"] .pack, [data-theme="mint"] .popup, [data-theme="mint"] .dlg { box-shadow: 0 3px 14px rgba(15,155,138,.08); }
+[data-theme="mint"] .logo { color: var(--accent); }
+[data-theme="mint"] .tabs button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+[data-theme="mint"] .toast { background: #10332c; color: #e8f6f2; }
+
+/* ---------- Лагуна: тёмная бирюзовая ---------- */
+:root[data-theme="lagoon"] {
+  color-scheme: dark;
+  --bg: #061a1d; --surface: #0c272b; --text: #dff7f3; --muted: #7fb3ab; --line: #1b4044;
+  --accent: #2dd4bf; --accent-text: #042322;
+  --ok: #6ee7a8; --bad: #ff6b6b; --warn: #fbbf24; --act: #a78bfa;
+  --radius: 14px;
+}
+[data-theme="lagoon"] body {
+  background:
+    radial-gradient(900px 500px at 50% -15%, rgba(45,212,191,.2), transparent 70%),
+    radial-gradient(700px 500px at 0% 110%, rgba(56,189,248,.12), transparent 70%),
+    var(--bg);
+  background-attachment: fixed;
+}
+[data-theme="lagoon"] .btn.primary { box-shadow: 0 0 14px rgba(45,212,191,.35); }
+[data-theme="lagoon"] .logo { color: var(--accent); text-shadow: 0 0 20px rgba(45,212,191,.45); }
+[data-theme="lagoon"] .tabs button.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+[data-theme="lagoon"] .card, [data-theme="lagoon"] .banner, [data-theme="lagoon"] .sec, [data-theme="lagoon"] .pcard, [data-theme="lagoon"] .popup, [data-theme="lagoon"] .dlg { box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 6px 20px rgba(0,0,0,.25); }
+
 /* ---------- Окно настроек ---------- */
 .theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 4px 0 14px; }
 .theme-opt { font: inherit; font-size: .78rem; font-weight: 600; color: var(--text); background: var(--bg); border: 2px solid var(--line); border-radius: 10px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; }

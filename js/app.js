@@ -5,12 +5,12 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=3.0';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.0';
-import * as E from './effects.js?v=3.0';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.0';
-import * as S from './sfx.js?v=3.0';
-import * as T from './tts.js?v=3.0';
+import * as L from './logic.js?v=3.1';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.1';
+import * as E from './effects.js?v=3.1';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.1';
+import * as S from './sfx.js?v=3.1';
+import * as T from './tts.js?v=3.1';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -341,7 +341,7 @@ function notifyEntry(e) {
       if (f.kind === 'shuffle_all' && f.key) (state?.game?.players || []).forEach(p => markFresh(`${p}:${f.key}`, 'fresh-swap'));
     };
     const mine = e.actor === me.id || f.pb === me.id || f.target === me.id || f.kind === 'shuffle_all';
-    showPopup({ after, cls: 'pop-act', fx: 'act', back: '🃏', top: `${e.who} применяет карту`, anim: actionAnim(e), value: e.title, sub: e.sub, sound: 'action', sound2: ACT_SOUND[f.kind], mine });
+    showPopup({ after, cls: 'pop-act', fx: 'act', back: '🃏', top: e.auto ? `${e.who} уходит — срабатывает карта` : `${e.who} применяет карту`, anim: actionAnim(e), value: e.title, sub: e.sub, sound: 'action', sound2: ACT_SOUND[f.kind], mine });
   }
   else if (e.type === 'exile') {
     if (e.pid) { markPending(e.pid); hold[e.pid] = true; }
@@ -544,7 +544,7 @@ async function doAdvance(expectedVersion) {
             }
           }
         }
-        if (ex) addLog(g.event, { type: 'exile', pid: ex, who: nameOf(ex) });
+        if (ex) { addLog(g.event, { type: 'exile', pid: ex, who: nameOf(ex) }); triggerExileCards(ex); }
         else if (feat && (g.bunker.shown || 0) > (before?.bunker?.shown || 0)) addLog(`Раунд ${g.round}. В бункере открыто: ${feat}`, { type: 'bunker', round: g.round, feature: feat });
         else if (!/время вышло/.test(g.event)) addLog(g.event, { type: 'game' });
       }
@@ -620,15 +620,15 @@ async function vote(target) {
   addLog(g.settings.voteSecret ? `@${me.id}@ проголосовал(а)` : `@${me.id}@ ${what}`, { type: 'vote', actor: me.id });
 }
 
-function targetsFor(effect) {
+function targetsFor(effect, owner = me.id) {
   const e = E.normalizeEffect(effect);
   const g = L.norm(clone(state.game));
   const alive = L.aliveIds(g);
   switch (e.type) {
-    case 'revive': return g.players.filter(p => !g.alive[p]);
-    case 'reveal_target': return alive.filter(p => p !== me.id && (e.key && e.key !== 'random' ? L.hiddenKeys(g, p).includes(e.key) : L.hiddenKeys(g, p).length > 0));
+    case 'revive': return g.players.filter(p => !g.alive[p] && p !== owner);
+    case 'reveal_target': return alive.filter(p => p !== owner && (e.key && e.key !== 'random' ? L.hiddenKeys(g, p).includes(e.key) : L.hiddenKeys(g, p).length > 0));
     case 'change': return alive; // можно выбрать и себя
-    default: return alive.filter(p => p !== me.id);
+    default: return alive.filter(p => p !== owner);
   }
 }
 
@@ -676,6 +676,7 @@ function pickNewValue(e, g, file, exclude, choice) {
 
 function applyChange(e, g, ctx, upd) {
   const cards = state.cards || {};
+  const owner = ctx.owner || me.id;
   const out = []; // фразы для журнала
   let popup = null;
 
@@ -736,10 +737,10 @@ function applyChange(e, g, ctx, upd) {
   const label = L.traitLabel(key);
   const alive = L.aliveIds(g);
   let targets;
-  if (e.target === 'self') targets = [me.id];
+  if (e.target === 'self') targets = [owner];
   else if (e.target === 'player') targets = [ctx.target];
   else if (e.target === 'all') targets = alive;
-  else { const others = alive.filter(p => p !== me.id); targets = [L.pick(others.length ? others : alive)]; }
+  else { const others = alive.filter(p => p !== owner); targets = [L.pick(others.length ? others : alive)]; }
   const used = new Set(g.players.flatMap(p => traitPartsOf(cards[p], key).raw));
 
   for (const pid of targets.filter(Boolean)) {
@@ -748,7 +749,7 @@ function applyChange(e, g, ctx, upd) {
     const parts = traitPartsOf(card, key);
     const open = !!(g.revealed[pid] || {})[key];
     const show = v => (open ? ` — ${v}` : ' (значение скрыто)');
-    const whose = pid === me.id ? 'у себя' : `у @${pid}@`;
+    const whose = pid === owner ? 'у себя' : `у @${pid}@`;
     if (e.op === 'remove') {
       let cand = parts.raw.map((r, idx) => ({ r, idx }));
       if ((e.mode === 'pool_random' || e.mode === 'pool_choice') && e.pool?.source === 'preset') cand = cand.filter(c => e.pool.items.includes(c.r));
@@ -778,14 +779,20 @@ async function useAction(i, ctx = {}) {
   content = c;
   const g = L.norm(clone(state.game));
   const cards = state.cards || {};
-  const a = cards[me.id]?.actions?.[i];
-  if (!a || a.used || !g.alive[me.id] || g.phase === 'end') return;
+  const owner = ctx.owner || me.id, auto = !!ctx.auto;
+  const ownerName = nameOf(owner);
+  const fail = m => (auto ? null : toast(m, 'warn'));
+  const a = cards[owner]?.actions?.[i];
+  if (!a || a.used || g.phase === 'end') return;
+  const when = a.when || 'alive';
+  if (!auto && !g.alive[owner] && when !== 'any' && when !== 'exiled') return;
   const e = E.normalizeEffect(a.effect);
   const target = ctx.target;
   const key = !e.key || e.key === 'random' ? L.pick(L.TRAIT_KEYS) : e.key;
   const label = L.traitLabel(key);
   const upd = {};
-  let msg = `@${me.id}@ применил(а) карту «${a.title}»`;
+  const prefix = auto ? `При изгнании @${owner}@ сработала карта «${a.title}»` : `@${owner}@ применил(а) карту «${a.title}»`;
+  let msg = prefix;
   let revealExtra = null;
 
   const put = (pid, k, from) => {
@@ -803,7 +810,7 @@ async function useAction(i, ctx = {}) {
       break;
     }
     case 'swap':
-      put(me.id, key, cards[target]); put(target, key, cards[me.id]);
+      put(owner, key, cards[target]); put(target, key, cards[owner]);
       msg += `: обмен характеристикой «${label}» с @${target}@`; break;
     case 'shuffle_all': {
       const sh = L.shuffle(alive.map(p => cards[p]));
@@ -814,41 +821,64 @@ async function useAction(i, ctx = {}) {
       const hid = L.hiddenKeys(g, target);
       let k = e.key && e.key !== 'random' ? e.key : null;
       if (!k || !hid.includes(k)) k = hid.length ? L.pick(hid) : null;
-      if (!k) return toast('У этого игрока уже всё раскрыто', 'warn');
+      if (!k) return fail('У этого игрока уже всё раскрыто', 'warn');
       upd[`game/revealed/${target}/${k}`] = true;
       msg += `: у @${target}@ раскрыто «${L.traitLabel(k)}» — ${cards[target].traits[k]}`;
-      revealExtra = { type: 'reveal', pid: target, actor: me.id, who: nameOf(target), key: k, label: L.traitLabel(k), value: cards[target].traits[k], desc: cardDesc(target, k) };
+      revealExtra = { type: 'reveal', pid: target, actor: owner, who: nameOf(target), key: k, label: L.traitLabel(k), value: cards[target].traits[k], desc: cardDesc(target, k) };
       break;
     }
     case 'immunity':
-      upd[`game/effects/immune/${me.id}`] = g.round; msg += ' — иммунитет в этом раунде'; break;
+      upd[`game/effects/immune/${owner}`] = g.round; msg += ' — иммунитет в этом раунде'; break;
     case 'double_vote':
-      upd[`game/effects/double/${me.id}`] = g.round; msg += ' — двойной голос в этом раунде'; break;
+      upd[`game/effects/double/${owner}`] = g.round; msg += ' — двойной голос в этом раунде'; break;
     case 'cancel_vote':
-      if (g.phase !== 'vote') return toast('Эту карту можно применить только во время голосования', 'warn');
+      if (g.phase !== 'vote') return fail('Эту карту можно применить только во время голосования', 'warn');
       upd['game/effects/cancelVote'] = g.round; msg += ' — голосование будет сорвано'; break;
     case 'bunker_reveal':
-      if (g.bunker.shown >= g.bunker.features.length) return toast('Все особенности бункера уже открыты', 'warn');
+      if (g.bunker.shown >= g.bunker.features.length) return fail('Все особенности бункера уже открыты', 'warn');
       upd['game/bunker/shown'] = increment(1);
       msg += `: в бункере открыто — ${g.bunker.features[g.bunker.shown]}`;
-      revealExtra = { type: 'bunker', feature: g.bunker.features[g.bunker.shown], actor: me.id };
+      revealExtra = { type: 'bunker', feature: g.bunker.features[g.bunker.shown], actor: owner };
       break;
     case 'revive':
       upd[`game/alive/${target}`] = true; msg += `: @${target}@ возвращается в игру`; break;
     default:
-      return toast('Неизвестная карта действия', 'warn');
+      return fail('Неизвестная карта действия', 'warn');
   }
-  upd[`cards/${me.id}/actions/${i}/used`] = true;
+  upd[`cards/${owner}/actions/${i}/used`] = true;
   await update(R(''), upd);
-  const prefix = `@${me.id}@ применил(а) карту «${a.title}»`;
   let sub = fillNames(msg.slice(prefix.length)).replace(/^\s*(:|—|и)\s*/, '');
   sub = sub ? sub[0].toUpperCase() + sub.slice(1) : '';
   const fx = { kind: e.type === 'change' ? e.op : e.type };
-  if (e.type === 'swap') Object.assign(fx, { a: me.name, b: nameOf(target), pa: me.id, pb: target, key, label });
+  if (e.type === 'swap') Object.assign(fx, { a: ownerName, b: nameOf(target), pa: owner, pb: target, key, label });
   if (e.type === 'shuffle_all') Object.assign(fx, { key });
   if (target) fx.target = target;
-  addLog(msg, { type: 'action', actor: me.id, who: me.name, title: a.title, sub, icon: actIcon(a), fx,
+  addLog(msg, { type: 'action', actor: owner, who: ownerName, title: a.title, sub, icon: actIcon(a), fx, ...(auto ? { auto: true } : {}),
     ...(revealExtra && revealExtra.label ? { label: revealExtra.label, value: revealExtra.value } : {}) });
+}
+
+// Карты, которые срабатывают сами при изгнании владельца (запускает тот, кто изгнал)
+async function triggerExileCards(pid) {
+  await new Promise(r => setTimeout(r, 500));
+  const acts = state?.cards?.[pid]?.actions || [];
+  for (let i = 0; i < acts.length; i++) {
+    const a = state?.cards?.[pid]?.actions?.[i];
+    if (!a || a.used || a.when !== 'auto' || !state?.game) continue;
+    const g = L.norm(clone(state.game));
+    if (g.phase === 'end' || g.alive[pid]) return;
+    const e = E.normalizeEffect(a.effect);
+    if (e.type === 'cancel_vote' || e.type === 'immunity' || e.type === 'double_vote') continue;
+    const ctx = { owner: pid, auto: true };
+    if (E.needsPlayer(e)) { const t = targetsFor(e, pid); if (!t.length) continue; ctx.target = L.pick(t); }
+    if (E.needsChoice(e)) {
+      const key = e.object === 'trait' ? resolveKey(e) : undefined;
+      const opts = choiceOptions(e, g, ctx.target ?? pid, key);
+      if (!opts.length) continue;
+      ctx.key = key; ctx.choice = L.pick(opts);
+    }
+    try { await useAction(i, ctx); } catch (err) { console.error(err); }
+    await new Promise(r => setTimeout(r, 300));
+  }
 }
 
 // Запуск карты: выбор игрока → выбор варианта → подтверждение
@@ -894,6 +924,7 @@ async function adminAddTime() {
 async function adminSetAlive(pid, alive) {
   await set(R(`game/alive/${pid}`), alive);
   addLog(alive ? `Хост вернул в игру @${pid}@` : `Хост исключил @${pid}@`, alive ? {} : { type: 'exile', pid, who: nameOf(pid) });
+  if (!alive) triggerExileCards(pid);
 }
 async function adminReveal(pid) {
   const key = document.getElementById('adm-key-' + pid)?.value;
@@ -1283,8 +1314,8 @@ function tabMe(g, playing) {
       <div class="acts">${acts.map((a, i) => `
         <div class="act ${a.used ? 'used' : ''}">
           <span class="act-ico">${actIcon(a)}</span>
-          <div class="act-body"><div class="act-kind">Карта действия</div><b>${esc(a.title)}</b><div class="act-text">${esc(a.text || E.describeEffect(a.effect))}</div></div>
-          <div class="act-side">${a.used ? '<span class="tag">использована</span>' : alive ? actionControl(a, i, g) : ''}</div>
+          <div class="act-body"><div class="act-kind">Карта действия${E.whenTag(a.when) ? ` · ${E.whenTag(a.when)}` : ''}</div><b>${esc(a.title)}</b><div class="act-text">${esc(a.text || E.describeEffect(a.effect))}</div></div>
+          <div class="act-side">${a.used ? '<span class="tag">использована</span>' : actionControl(a, i, g)}</div>
         </div>`).join('')}</div>` : ''}
     <button class="btn ghost" data-a="leave">Выйти (можно вернуться)</button>`;
 }
@@ -1293,6 +1324,11 @@ function tabMe(g, playing) {
 function actionBlockReason(a, g) {
   const e = a.effect || {};
   if (g.phase === 'end') return 'Игра окончена';
+  const when = a.when || 'alive', dead = !g.alive[me.id];
+  if (when === 'auto') return dead ? 'Не смогла сработать' : 'Сработает сама, если вас изгонят';
+  if (dead && when === 'alive') return 'После изгнания эту карту не сыграть';
+  if (!dead && when === 'exiled') return 'Можно сыграть только после изгнания';
+  if (dead && (e.type === 'immunity' || e.type === 'double_vote')) return 'После изгнания бесполезна';
   switch (e.type) {
     case 'cancel_vote':
       if (g.phase !== 'vote') return 'Доступна во время голосования';
@@ -1337,7 +1373,7 @@ function actIcon(a) {
   return (found && found.icon) || '🃏';
 }
 function actionCardHtml(a) {
-  return `<div class="act-hero"><div class="act-hero-ico">${actIcon(a)}</div><div class="act-kind">Карта действия</div><div class="act-hero-title">${esc(a.title)}</div><div class="act-text">${esc(a.text || E.describeEffect(a.effect))}</div></div>`;
+  return `<div class="act-hero"><div class="act-hero-ico">${actIcon(a)}</div><div class="act-kind">Карта действия${E.whenTag(a.when) ? ` · ${E.whenTag(a.when)}` : ''}</div><div class="act-hero-title">${esc(a.title)}</div><div class="act-text">${esc(a.text || E.describeEffect(a.effect))}</div></div>`;
 }
 
 function actionControl(a, i, g) {

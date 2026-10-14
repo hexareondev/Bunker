@@ -9,6 +9,10 @@ export const THEMES = [
   ['terminal', 'Терминал', ['#050b06', '#0a140c', '#39ff6a']],
   ['rust', 'Ржавчина', ['#1a110d', '#2a1b15', '#e2702e']],
   ['waste', 'Пустошь', ['#e6d6b4', '#f5ebd3', '#a94f24']],
+  ['sakura', 'Сакура', ['#fbeef3', '#fff8fb', '#e0457b']],
+  ['neon', 'Неон', ['#140a1c', '#20112d', '#ff4fa3']],
+  ['mint', 'Мята', ['#e8f6f2', '#f8fffd', '#0f9b8a']],
+  ['lagoon', 'Лагуна', ['#061a1d', '#0c272b', '#2dd4bf']],
 ];
 export const MOTION_MODES = [['full', 'Все'], ['reduced', 'Меньше'], ['off', 'Выкл']];
 export const SOUND_MODES = [['all', 'Все события'], ['mine', 'Только мои'], ['off', 'Выкл']];

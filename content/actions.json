@@ -464,5 +464,70 @@
    "mode": "random"
   },
   "dark": true
+ },
+ {
+  "id": "revenge",
+  "title": "Месть",
+  "icon": "🗡️",
+  "text": "Если вас изгонят, напоследок вы меняетесь багажом со случайным оставшимся игроком.",
+  "effect": {
+   "type": "swap",
+   "key": "baggage"
+  },
+  "when": "auto",
+  "dark": false
+ },
+ {
+  "id": "testament",
+  "title": "Завещание",
+  "icon": "📜",
+  "text": "Если вас изгонят, ваш тайник с едой остаётся бункеру: +6 месяцев запаса.",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "food",
+   "amount": 6
+  },
+  "when": "auto",
+  "dark": false
+ },
+ {
+  "id": "curse_exile",
+  "title": "Проклятие изгнанника",
+  "icon": "🕯️",
+  "text": "Если вас изгонят, случайный оставшийся игрок получает новую фобию.",
+  "effect": {
+   "type": "change",
+   "op": "replace",
+   "object": "trait",
+   "key": "phobia",
+   "target": "random_player",
+   "mode": "random"
+  },
+  "when": "auto",
+  "dark": true
+ },
+ {
+  "id": "last_word",
+  "title": "Последнее слово",
+  "icon": "📢",
+  "text": "Только после изгнания: раскройте любую скрытую характеристику выбранного игрока.",
+  "effect": {
+   "type": "reveal_target",
+   "key": "random"
+  },
+  "when": "exiled",
+  "dark": false
+ },
+ {
+  "id": "insider",
+  "title": "Связи снаружи",
+  "icon": "📡",
+  "text": "Откройте следующую особенность бункера. Можно сыграть и после изгнания — по рации снаружи.",
+  "effect": {
+   "type": "bunker_reveal"
+  },
+  "when": "any",
+  "dark": false
  }
 ]
