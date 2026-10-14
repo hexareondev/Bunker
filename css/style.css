@@ -534,3 +534,41 @@ body.quake #app { animation: quake .9s both; }
 .say:hover, .say:focus-visible { background: color-mix(in srgb, var(--accent) 15%, transparent); }
 .prefs select { padding: 8px 10px; }
 .dlg { max-height: 90vh; overflow-y: auto; }
+
+/* ---------- QR ---------- */
+.qr { display: block; border-radius: 8px; max-width: 100%; height: auto; }
+.qr-box { display: flex; justify-content: center; margin: 4px 0 10px; }
+.link-btn { background: none; border: 0; font: inherit; font-size: .88rem; color: var(--muted); cursor: pointer; padding: 6px; margin-top: 4px; }
+.link-btn:hover { color: var(--accent); }
+.dlg .btn[href] { display: block; text-align: center; text-decoration: none; margin-top: 8px; }
+
+/* ---------- Табло на общий экран ---------- */
+.board { max-width: 1500px; margin: 0 auto; padding: 12px 16px 32px; }
+.bd-head { display: flex; align-items: center; gap: 16px; padding: 6px 0 14px; border-bottom: 1px solid var(--line); margin-bottom: 14px; flex-wrap: wrap; }
+.bd-brand { display: flex; align-items: baseline; gap: 12px; }
+.bd-brand .logo { margin: 0; text-align: left; }
+.bd-code { font-weight: 800; letter-spacing: .25em; font-size: 1.1rem; padding: 2px 8px; border: 1px solid var(--line); border-radius: 8px; }
+.bd-phase { flex: 1 1 auto; font-size: 1.15rem; min-width: 0; }
+.bd-timer { font-size: 2.6rem; }
+.bd-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+.bd-side .card { margin-bottom: 12px; }
+.bd-main .banner { font-size: 1.25rem; margin-bottom: 14px; }
+.bd-main .banner .btn { display: none; }
+.bd-main .players { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.bd-lobby { display: grid; gap: 16px; grid-template-columns: 1fr; }
+.bd-join { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.bd-join .tl { align-self: stretch; }
+.bd-bigcode { font-size: 3.4rem; font-weight: 900; letter-spacing: .3em; line-height: 1; margin-top: 6px; }
+.bd-plist { list-style: none; padding: 0; margin: 6px 0 10px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 16px; font-size: 1.2rem; }
+.bd-plist li { display: flex; align-items: center; gap: 8px; }
+.board-msg { padding-top: 15vh; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+@media (min-width: 900px) {
+  .bd-grid { grid-template-columns: minmax(300px, 34%) 1fr; align-items: start; }
+  .bd-lobby { grid-template-columns: auto 1fr; align-items: start; }
+}
+/* на больших экранах всё крупнее, чтобы читалось с дивана */
+@media (min-width: 1300px) { html.board-mode body { zoom: 1.2; } }
+@media (min-width: 1700px) { html.board-mode body { zoom: 1.45; } }
+@media (min-width: 2400px) { html.board-mode body { zoom: 1.9; } }
+html.board-mode .popup { max-width: 420px; }
+html.board-mode .wrap.end { max-width: 1100px; }

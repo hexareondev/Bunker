@@ -5,12 +5,13 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=3.4';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.4';
-import * as E from './effects.js?v=3.4';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.4';
-import * as S from './sfx.js?v=3.4';
-import * as T from './tts.js?v=3.4';
+import * as L from './logic.js?v=3.5';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.5';
+import * as E from './effects.js?v=3.5';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.5';
+import * as S from './sfx.js?v=3.5';
+import * as T from './tts.js?v=3.5';
+import { qrSvg } from './qr.js?v=3.5';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -28,8 +29,11 @@ const now = () => Date.now() + serverOffset;
 // ---------------- Локальное состояние ----------------
 const LS = { pid: 'bunker.pid', name: 'bunker.name', room: 'bunker.room' };
 const genId = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)).replace(/-/g, '').slice(0, 16);
+// Табло для общего экрана: ?board=КОД — только смотрит, в игроки не добавляется
+const BOARD_CODE = (new URLSearchParams(location.search).get('board') || '').toUpperCase().slice(0, 4);
 const me = { id: localStorage.getItem(LS.pid) || genId(), name: localStorage.getItem(LS.name) || '' };
 localStorage.setItem(LS.pid, me.id);
+if (BOARD_CODE) { me.id = 'board_' + genId().slice(0, 8); me.name = 'Табло'; }
 
 let roomCode = null;
 let state = null;
@@ -281,7 +285,8 @@ function narrMode() { return (state?.game?.settings || state?.settings || {}).na
 function shouldNarrate() {
   if (!T.supported || S.prefs.tts === 'off') return false;
   const m = narrMode();
-  return m === 'all' || (m === 'host' && isHost());
+  if (m === 'board') return !!ui.board;
+  return m === 'all' || (m === 'host' && isHost() && !ui.board);
 }
 function narrate(text, opts) { if (shouldNarrate() && text) T.speak(text, opts); }
 const dot = t => { t = String(t || '').trim(); return !t || /[.!?…]$/.test(t) ? t : t + '.'; };
@@ -341,10 +346,12 @@ function notifyEntry(e) {
       if (f.kind === 'shuffle_all' && f.key) (state?.game?.players || []).forEach(p => markFresh(`${p}:${f.key}`, 'fresh-swap'));
     };
     const mine = e.actor === me.id || f.pb === me.id || f.target === me.id || f.kind === 'shuffle_all';
+    if (e.actor !== me.id && (f.pb === me.id || f.target === me.id)) buzz(200);
     showPopup({ after, cls: 'pop-act', fx: 'act', back: '🃏', top: e.auto ? `${e.who} уходит — срабатывает карта` : `${e.who} применяет карту`, anim: actionAnim(e), value: e.title, sub: e.sub, sound: 'action', sound2: ACT_SOUND[f.kind], mine });
   }
   else if (e.type === 'exile') {
     if (e.pid) { markPending(e.pid); hold[e.pid] = true; }
+    if (e.pid === me.id) buzz([300, 100, 300]);
     showPopup({ after: () => e.pid && markFresh(e.pid, 'fresh-dead'), cls: 'exile', fx: 'exile', top: 'Изгнан(а) из бункера', name: e.who, sound: 'exile', mine: e.pid === me.id });
   }
   else if (e.type === 'start') {
@@ -368,6 +375,34 @@ function notifyEntry(e) {
   else if (e.type === 'vote' || e.type === 'presence') { if (e.actor !== me.id) { toast(e.text, 'small'); if (e.type === 'vote') S.play('vote'); } }
   else { toast(e.text); S.play('pop'); }
 }
+
+// ---------------- Ссылки, QR, экран и вибрация ----------------
+const baseUrl = () => location.origin + location.pathname;
+const joinUrl = code => `${baseUrl()}#${code}`;
+const boardUrl = code => `${baseUrl()}?board=${code}`;
+function showQr() {
+  const url = joinUrl(roomCode);
+  dialog({ title: `Вход в лобби ${roomCode}`, html: `<div class="qr-box">${qrSvg(url, { size: 240 })}</div><p class="muted small center">Наведите камеру телефона на код — откроется лобби.</p><input class="copy-field" readonly value="${esc(url)}" onclick="this.select()">`, ok: 'Готово', cancel: '' });
+}
+function showBoardInfo() {
+  const url = boardUrl(roomCode);
+  dialog({ title: '📺 Табло на общий экран', html: `<p class="small">Откройте эту ссылку на телевизоре или ноутбуке. Табло показывает катастрофу, бункер, таймер, кто говорит, раскрытые карты и голосование — но не скрытые характеристики. В игроки оно не добавляется.</p>
+    <div class="qr-box">${qrSvg(url, { size: 200 })}</div>
+    <input class="copy-field" readonly value="${esc(url)}" onclick="this.select()">
+    <p class="muted small">Чтобы озвучку читало табло, а не телефоны, выберите в настройках лобби «Озвучка → Табло».</p>
+    <a class="btn small ghost" href="${esc(url)}" target="_blank" rel="noopener">Открыть табло в новой вкладке</a>`, ok: 'Готово', cancel: '' });
+}
+// Не даём экрану погаснуть, пока идёт игра (Screen Wake Lock API)
+let wakeLock = null;
+async function keepAwake(on) {
+  try {
+    if (on && S.prefs.awake !== false && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+      if (!wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener?.('release', () => { wakeLock = null; }); }
+    } else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch { wakeLock = null; }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && roomCode) keepAwake(true); });
+function buzz(pattern) { if (ui.board || S.prefs.vibro === false) return; try { navigator.vibrate?.(pattern); } catch {} }
 
 // ---------------- Комнаты ----------------
 const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -419,6 +454,7 @@ async function joinRoom() {
 let rejoinPending = false;
 function enterRoom(code, { rejoin = false } = {}) {
   roomCode = code;
+  keepAwake(true);
   ui.error = '';
   seenLog = null;
   rejoinPending = rejoin;
@@ -443,6 +479,23 @@ function enterRoom(code, { rejoin = false } = {}) {
   setupPresence();
 }
 
+function enterBoard(code) {
+  ui.board = true;
+  roomCode = code;
+  document.documentElement.classList.add('board-mode');
+  document.title = `Табло · ${code} · БункИИр`;
+  keepAwake(true);
+  roomUnsub = onValue(R(''), snap => {
+    const prev = state;
+    state = snap.val();
+    trackChanges(prev, state);
+    if (!state) { setHTML(`<div class="wrap center board-msg"><h1 class="logo">БункИИр</h1><div class="err">Лобби ${esc(code)} не найдено</div><a class="btn" href="${esc(baseUrl())}">На главную</a></div>`); return; }
+    syncContent();
+    processLog();
+    render();
+  }, err => { setHTML(`<div class="wrap"><div class="err">Нет доступа к базе: ${esc(err.message)}</div></div>`); });
+}
+
 function setupPresence() {
   presenceUnsub?.();
   const onlineRef = R(`players/${me.id}/online`);
@@ -460,6 +513,8 @@ function setupPresence() {
 
 function exitRoom(msg) {
   T.stop();
+  keepAwake(false);
+  if (ui.board) { location.href = baseUrl(); return; }
   roomUnsub?.(); presenceUnsub?.();
   roomUnsub = presenceUnsub = null;
   if (roomCode) onDisconnect(R('')).cancel().catch(() => {});
@@ -559,7 +614,7 @@ async function forceEnd() {
 }
 
 function amAdvancer() {
-  if (!state?.game) return false;
+  if (!state?.game || ui.board) return false;
   const host = state.players?.[state.meta.hostId];
   if (host?.online) return state.meta.hostId === me.id;
   const first = validPlayers().find(([, p]) => p.online);
@@ -981,7 +1036,7 @@ const FIELDS = [
   { k: 'discussionTime', t: 'num', l: 'Обсуждение, сек', min: 0, max: 1800 },
   { k: 'voteTime', t: 'num', l: 'Голосование, сек', min: 0, max: 600 },
   { k: 'resultTime', t: 'num', l: 'Показ итога, сек', min: 0, max: 120 },
-  { k: 'narration', t: 'select', l: 'Кто зачитывает катастрофу, бункер и новые особенности', opts: { host: 'Телефон хоста (все в одной комнате)', all: 'Каждое устройство (игра по видеосвязи)', off: 'Никто' } },
+  { k: 'narration', t: 'select', l: 'Кто зачитывает катастрофу, бункер и новые особенности', opts: { host: 'Телефон хоста (все в одной комнате)', board: 'Табло на общем экране', all: 'Каждое устройство (игра по видеосвязи)', off: 'Никто' } },
   { k: 'narrateFinal', t: 'check', l: 'Зачитывать историю в финале' },
 ];
 
@@ -999,7 +1054,7 @@ const SECTIONS = [
   { id: 'timers', icon: '⏱️', title: 'Таймеры', keys: ['speechTime', 'discussionTime', 'voteTime', 'resultTime'],
     sum: s => `речь ${secs(s.speechTime)} · обсуждение ${secs(s.discussionTime)} · голосование ${secs(s.voteTime)}` },
   { id: 'voice', icon: '🔊', title: 'Озвучка', keys: ['narration', 'narrateFinal'],
-    sum: s => `${({ host: 'читает хост', all: 'читают все', off: 'выключена' })[s.narration] || 'читает хост'}${s.narration !== 'off' && s.narrateFinal ? ' · финал тоже' : ''}` },
+    sum: s => `${({ host: 'читает хост', board: 'читает табло', all: 'читают все', off: 'выключена' })[s.narration] || 'читает хост'}${s.narration !== 'off' && s.narrateFinal ? ' · финал тоже' : ''}` },
   { id: 'final', icon: '🏁', title: 'Финал', keys: ['finalMode', 'finalFates', 'finalExiled'],
     sum: s => `${s.finalMode === 'story' ? 'только история' : 'история + итог'}${s.finalFates ? ' · судьбы' : ''}${s.finalExiled ? ' · изгнанные' : ''}` },
 ];
@@ -1063,7 +1118,8 @@ function setHTML(html) {
 function render() {
   if (drag) { drag.pending = true; return; }
   try {
-    if (!state) renderHome();
+    if (ui.board && state) renderBoard();
+    else if (!state) renderHome();
     else if (state.meta?.status === 'lobby') renderLobby();
     else if (state.game?.phase === 'end') renderEnd();
     else if (state.game) renderGame();
@@ -1087,6 +1143,7 @@ function renderHome() {
     <button class="btn primary" data-a="join">Войти в лобби</button>
     <div class="or">или</div>
     <button class="btn ghost" data-a="create">Создать своё лобби</button>
+    <button class="link-btn" data-a="openBoard">📺 Открыть табло по коду (для телевизора или ноутбука)</button>
     <a class="home-link" href="editor.html">✏️ Редактор карточек, катастроф и бункера</a>
   </div>`);
 }
@@ -1166,7 +1223,7 @@ function renderLobby() {
   <div class="wrap">
     <div class="lobby-head">
       <div><div class="muted small">Код лобби</div><div class="code">${esc(roomCode)}</div></div>
-      <div class="lobby-tools"><button class="btn small" data-a="copy">Ссылка</button><button class="gear" data-a="prefs" title="Настройки">⚙️</button></div>
+      <div class="lobby-tools"><button class="btn small" data-a="copy">Ссылка</button><button class="btn small" data-a="qr" title="QR-код для входа">QR</button><button class="btn small" data-a="boardInfo" title="Табло на общий экран">📺</button><button class="gear" data-a="prefs" title="Настройки">⚙️</button></div>
     </div>
     <h2>Игроки · ${ps.length}</h2>
     <p class="muted small">Ходят по кругу сверху вниз.${host ? ' Перетаскивайте игроков за ⠿, чтобы поменять порядок.' : ''}</p>
@@ -1269,7 +1326,7 @@ function traitRows(pid, g, { mine = false } = {}) {
 function renderGame() {
   const g = L.norm(clone(state.game));
   const turnKey = g.phase === 'speech' && L.currentSpeaker(g) === me.id ? `${roomCode}:${g.round}:${g.turn}` : '';
-  if (turnKey && turnKey !== ui.turnKey) S.play('turn', { mine: true });
+  if (turnKey && turnKey !== ui.turnKey) { S.play('turn', { mine: true }); buzz([120, 80, 120]); }
   ui.turnKey = turnKey;
   const playing = g.players.includes(me.id);
   const host = isHost();
@@ -1497,6 +1554,38 @@ function renderModal(g) {
   </div></div>`;
 }
 
+// ---------------- Табло на общий экран ----------------
+function renderBoard() {
+  const code = roomCode;
+  const head = mid => `<header class="bd-head">
+      <div class="bd-brand"><span class="logo small">БункИИр</span><span class="bd-code" title="Код лобби">${esc(code)}</span></div>
+      ${mid}
+      <button class="gear" data-a="prefs" title="Настройки">⚙️</button>
+    </header>`;
+  if (state.meta?.status !== 'playing' || !state.game) {
+    const ps = validPlayers();
+    setHTML(`<div class="board">
+      ${head('<div class="bd-phase"><b>Лобби</b><div class="muted small">Табло — только для просмотра</div></div>')}
+      <div class="bd-lobby">
+        <div class="card bd-join"><div class="tl">Заходите в игру</div>${qrSvg(joinUrl(code), { size: 260 })}<div class="bd-bigcode">${esc(code)}</div><div class="muted small">${esc(location.host + location.pathname)} → код лобби</div></div>
+        <div class="card"><div class="tl">Игроки · ${ps.length}</div>
+          <ul class="bd-plist">${ps.map(([id, p]) => `<li><span class="dot ${p.online ? 'on' : ''}"></span>${esc(p.name)}${id === state.meta.hostId ? ' <span class="tag">хост</span>' : ''}</li>`).join('') || '<li class="muted">Пока никого</li>'}</ul>
+          <p class="muted">Ждём, пока хост начнёт игру…</p></div>
+      </div></div>`);
+    return;
+  }
+  if (state.game.phase === 'end') { renderEnd(); return; }
+  const g = L.norm(clone(state.game));
+  const fi = L.foodInfo(g);
+  setHTML(`<div class="board">
+    ${head(`<div class="bd-phase"><b>Раунд ${g.round}</b> · ${L.PHASE_NAMES[g.phase] || g.phase}<div class="muted small">Мест: ${g.slots} · в игре: ${L.aliveIds(g).length}${fi.has ? ` · 🍖 ${L.monthsText(fi.months, true)}` : ''}</div></div><div id="timer" class="timer bd-timer"></div>`)}
+    <div class="bd-grid">
+      <section class="bd-side">${tabBunker(g)}</section>
+      <section class="bd-main">${phaseBanner(g)}${tabPlayers(g)}</section>
+    </div>
+  </div>`);
+}
+
 // Итог игры: конфетти или мрак + звук
 function celebrate(fin) {
   const lvl = fin.mode === 'story' ? 'story' : fin.verdict?.level;
@@ -1530,6 +1619,9 @@ function prefsHtml() {
       <span class="small">«Только мои» — звук только когда событие касается вас: ваш ход, карта против вас, финал.</span></div>
     <div class="pref-row">Анимации<div class="seg">${S.MOTION_MODES.map(([k, l]) => `<button class="${P.motion === k ? 'on' : ''}" data-pref="motion" data-v="${k}">${l}</button>`).join('')}</div>
       <span class="small">«Меньше» — без переворотов, искр и тряски, только плавное появление. Помогает на слабых телефонах.</span></div>
+    <div class="pref-row">На телефоне<label class="row-check"><input type="checkbox" data-pref-chk="awake" ${P.awake !== false ? 'checked' : ''}><span>Не гасить экран во время игры</span></label>
+      <label class="row-check"><input type="checkbox" data-pref-chk="vibro" ${P.vibro !== false ? 'checked' : ''}><span>Вибрация: ваш ход, карта против вас, изгнание</span></label>
+      ${'vibrate' in navigator ? '' : '<span class="small">Вибрацию этот браузер не поддерживает (например, iPhone).</span>'}</div>
     ${ttsPrefsHtml()}
     <label class="pref-row">Громкость звуков<input type="range" min="0" max="1" step="0.05" value="${P.vol}" data-pref="vol"></label>
     <p class="muted small">Настройки сохраняются на этом устройстве.</p>`;
@@ -1540,7 +1632,7 @@ function ttsPrefsHtml() {
   const vs = T.ruVoices();
   const cur = vs.find(v => v.voiceURI === P.ttsVoice) ? P.ttsVoice : '';
   const mode = narrMode();
-  const who = mode === 'off' ? 'В этом лобби озвучка выключена.' : mode === 'all' ? 'В этом лобби читают все устройства.' : 'В этом лобби читает только телефон хоста.';
+  const who = mode === 'off' ? 'В этом лобби озвучка выключена.' : mode === 'all' ? 'В этом лобби читают все устройства.' : mode === 'board' ? 'В этом лобби читает табло на общем экране.' : 'В этом лобби читает только телефон хоста.';
   return `<div class="pref-row">Озвучка на этом устройстве<div class="seg">${[['on', 'Вкл'], ['off', 'Выкл']].map(([k, l]) => `<button class="${(P.tts || 'on') === k ? 'on' : ''}" data-pref="tts" data-v="${k}">${l}</button>`).join('')}</div>
       ${state ? `<span class="small">${who} Кто читает, выбирает хост в настройках лобби.</span>` : ''}</div>
     ${vs.length ? `<label class="pref-row">Голос<select data-pref-sel="ttsVoice"><option value="">Автоматически</option>${vs.map(v => `<option value="${esc(v.voiceURI)}" ${cur === v.voiceURI ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select></label>
@@ -1566,6 +1658,8 @@ $ov.addEventListener('click', e => {
   if (!T.speak('Внимание, жители бункера. Двери закроются через одну минуту.', { interrupt: true })) toast('Нет русского голоса на этом устройстве', 'warn');
 });
 $ov.addEventListener('change', e => {
+  const chk = e.target.dataset?.prefChk;
+  if (chk) { S.setPref(chk, e.target.checked); if (chk === 'awake') keepAwake(e.target.checked && !!roomCode); if (chk === 'vibro' && e.target.checked) navigator.vibrate?.(150); return; }
   const sel = e.target.dataset?.prefSel;
   if (sel) { S.setPref(sel, e.target.value); T.speak('Голос выбран.', { interrupt: true }); return; }
   if (e.target.dataset?.pref === 'ttsRate') { S.setPref('ttsRate', +e.target.value); T.speak('Так звучит новая скорость.', { interrupt: true }); return; }
@@ -1636,7 +1730,15 @@ $app.addEventListener('click', async e => {
     switch (a) {
       case 'create': await createRoom(); break;
       case 'join': await joinRoom(); break;
-      case 'leave': await leaveRoom(); break;
+      case 'leave': if (ui.board) { location.href = baseUrl(); break; } await leaveRoom(); break;
+      case 'qr': showQr(); break;
+      case 'boardInfo': showBoardInfo(); break;
+      case 'openBoard': {
+        const code = (document.getElementById('code')?.value || '').trim().toUpperCase();
+        if (code.length !== 4) { ui.error = 'Введите код лобби, чтобы открыть его табло'; render(); break; }
+        location.href = boardUrl(code);
+        break;
+      }
       case 'copy': {
         const url = location.origin + location.pathname + '#' + roomCode;
         try { await navigator.clipboard.writeText(url); toast('Ссылка скопирована'); } catch { dialog({ title: 'Ссылка на лобби', html: `<input class="copy-field" readonly value="${esc(url)}" onclick="this.select()">`, ok: 'Готово', cancel: '' }); }
@@ -1768,6 +1870,7 @@ $app.addEventListener('keydown', e => {
 
 // ---------------- Старт и переподключение ----------------
 (async function boot() {
+  if (BOARD_CODE) { enterBoard(BOARD_CODE); return; }
   const code = (location.hash.slice(1) || localStorage.getItem(LS.room) || '').toUpperCase();
   if (code) {
     ui.prefill = code;
