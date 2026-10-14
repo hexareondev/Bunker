@@ -5,13 +5,13 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=3.5';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.5';
-import * as E from './effects.js?v=3.5';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.5';
-import * as S from './sfx.js?v=3.5';
-import * as T from './tts.js?v=3.5';
-import { qrSvg } from './qr.js?v=3.5';
+import * as L from './logic.js?v=3.6';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.6';
+import * as E from './effects.js?v=3.6';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.6';
+import * as S from './sfx.js?v=3.6';
+import * as T from './tts.js?v=3.6';
+import { qrSvg } from './qr.js?v=3.6';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -346,12 +346,12 @@ function notifyEntry(e) {
       if (f.kind === 'shuffle_all' && f.key) (state?.game?.players || []).forEach(p => markFresh(`${p}:${f.key}`, 'fresh-swap'));
     };
     const mine = e.actor === me.id || f.pb === me.id || f.target === me.id || f.kind === 'shuffle_all';
-    if (e.actor !== me.id && (f.pb === me.id || f.target === me.id)) buzz(200);
+    if (e.actor !== me.id && (f.pb === me.id || f.target === me.id)) buzz('hit');
     showPopup({ after, cls: 'pop-act', fx: 'act', back: '🃏', top: e.auto ? `${e.who} уходит — срабатывает карта` : `${e.who} применяет карту`, anim: actionAnim(e), value: e.title, sub: e.sub, sound: 'action', sound2: ACT_SOUND[f.kind], mine });
   }
   else if (e.type === 'exile') {
     if (e.pid) { markPending(e.pid); hold[e.pid] = true; }
-    if (e.pid === me.id) buzz([300, 100, 300]);
+    if (e.pid === me.id) buzz('exile');
     showPopup({ after: () => e.pid && markFresh(e.pid, 'fresh-dead'), cls: 'exile', fx: 'exile', top: 'Изгнан(а) из бункера', name: e.who, sound: 'exile', mine: e.pid === me.id });
   }
   else if (e.type === 'start') {
@@ -402,7 +402,19 @@ async function keepAwake(on) {
   } catch { wakeLock = null; }
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && roomCode) keepAwake(true); });
-function buzz(pattern) { if (ui.board || S.prefs.vibro === false) return; try { navigator.vibrate?.(pattern); } catch {} }
+// Вибрация: длительность задаём сами (силу браузер менять не даёт), «сильная» — длиннее и с лишним импульсом
+function vibroMode() { const v = S.prefs.vibro; return v === false || v === 'off' ? 'off' : v === 'strong' ? 'strong' : 'normal'; }
+const VIBRO = {
+  turn: { normal: [350, 150, 350], strong: [600, 150, 600, 150, 600] },
+  hit: { normal: [450], strong: [800, 150, 400] },
+  exile: { normal: [700, 200, 700], strong: [1000, 200, 1000, 200, 1000] },
+  test: { normal: [400], strong: [800] },
+};
+function buzz(kind) {
+  const m = vibroMode();
+  if (ui.board || m === 'off') return;
+  try { navigator.vibrate?.(VIBRO[kind]?.[m] || VIBRO.test[m]); } catch {}
+}
 
 // ---------------- Комнаты ----------------
 const CODE_ABC = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -1326,7 +1338,7 @@ function traitRows(pid, g, { mine = false } = {}) {
 function renderGame() {
   const g = L.norm(clone(state.game));
   const turnKey = g.phase === 'speech' && L.currentSpeaker(g) === me.id ? `${roomCode}:${g.round}:${g.turn}` : '';
-  if (turnKey && turnKey !== ui.turnKey) { S.play('turn', { mine: true }); buzz([120, 80, 120]); }
+  if (turnKey && turnKey !== ui.turnKey) { S.play('turn', { mine: true }); buzz('turn'); }
   ui.turnKey = turnKey;
   const playing = g.players.includes(me.id);
   const host = isHost();
@@ -1619,9 +1631,10 @@ function prefsHtml() {
       <span class="small">«Только мои» — звук только когда событие касается вас: ваш ход, карта против вас, финал.</span></div>
     <div class="pref-row">Анимации<div class="seg">${S.MOTION_MODES.map(([k, l]) => `<button class="${P.motion === k ? 'on' : ''}" data-pref="motion" data-v="${k}">${l}</button>`).join('')}</div>
       <span class="small">«Меньше» — без переворотов, искр и тряски, только плавное появление. Помогает на слабых телефонах.</span></div>
-    <div class="pref-row">На телефоне<label class="row-check"><input type="checkbox" data-pref-chk="awake" ${P.awake !== false ? 'checked' : ''}><span>Не гасить экран во время игры</span></label>
-      <label class="row-check"><input type="checkbox" data-pref-chk="vibro" ${P.vibro !== false ? 'checked' : ''}><span>Вибрация: ваш ход, карта против вас, изгнание</span></label>
-      ${'vibrate' in navigator ? '' : '<span class="small">Вибрацию этот браузер не поддерживает (например, iPhone).</span>'}</div>
+    ${ui.board ? '' : `<div class="pref-row">На телефоне<label class="row-check"><input type="checkbox" data-pref-chk="awake" ${P.awake !== false ? 'checked' : ''}><span>Не гасить экран во время игры</span></label>
+    </div>
+    <div class="pref-row">Вибрация: ваш ход, карта против вас, изгнание<div class="seg">${[['off', 'Выкл'], ['normal', 'Обычная'], ['strong', 'Сильная']].map(([k, l]) => `<button class="${vibroMode() === k ? 'on' : ''}" data-pref="vibro" data-v="${k}">${l}</button>`).join('')}</div>
+      ${'vibrate' in navigator ? '' : '<span class="small">Вибрацию этот браузер не поддерживает (например, iPhone).</span>'}</div>`}
     ${ttsPrefsHtml()}
     <label class="pref-row">Громкость звуков<input type="range" min="0" max="1" step="0.05" value="${P.vol}" data-pref="vol"></label>
     <p class="muted small">Настройки сохраняются на этом устройстве.</p>`;
@@ -1652,6 +1665,7 @@ $ov.addEventListener('click', e => {
   if (box) box.innerHTML = prefsHtml();
   if (b.dataset.pref === 'sound' && b.dataset.v !== 'off') S.play('turn', { mine: true });
   if (b.dataset.pref === 'tts' && b.dataset.v === 'off') T.stop();
+  if (b.dataset.pref === 'vibro') buzz('test');
 });
 $ov.addEventListener('click', e => {
   if (!e.target.closest('[data-tts-test]')) return;
@@ -1659,7 +1673,7 @@ $ov.addEventListener('click', e => {
 });
 $ov.addEventListener('change', e => {
   const chk = e.target.dataset?.prefChk;
-  if (chk) { S.setPref(chk, e.target.checked); if (chk === 'awake') keepAwake(e.target.checked && !!roomCode); if (chk === 'vibro' && e.target.checked) navigator.vibrate?.(150); return; }
+  if (chk) { S.setPref(chk, e.target.checked); if (chk === 'awake') keepAwake(e.target.checked && !!roomCode);  return; }
   const sel = e.target.dataset?.prefSel;
   if (sel) { S.setPref(sel, e.target.value); T.speak('Голос выбран.', { interrupt: true }); return; }
   if (e.target.dataset?.pref === 'ttsRate') { S.setPref('ttsRate', +e.target.value); T.speak('Так звучит новая скорость.', { interrupt: true }); return; }

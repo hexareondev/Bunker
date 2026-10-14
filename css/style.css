@@ -567,8 +567,10 @@ body.quake #app { animation: quake .9s both; }
   .bd-lobby { grid-template-columns: auto 1fr; align-items: start; }
 }
 /* на больших экранах всё крупнее, чтобы читалось с дивана */
-@media (min-width: 1300px) { html.board-mode body { zoom: 1.2; } }
-@media (min-width: 1700px) { html.board-mode body { zoom: 1.45; } }
-@media (min-width: 2400px) { html.board-mode body { zoom: 1.9; } }
+/* увеличиваем только содержимое табло: всплывающие окна и настройки остаются в границах экрана */
+@media (min-width: 1300px) { html.board-mode #app { zoom: 1.2; } html.board-mode .flip { zoom: 1.2; } }
+@media (min-width: 1700px) { html.board-mode #app { zoom: 1.45; } html.board-mode .flip { zoom: 1.4; } }
+@media (min-width: 2400px) { html.board-mode #app { zoom: 1.9; } html.board-mode .flip { zoom: 1.7; } }
 html.board-mode .popup { max-width: 420px; }
+html.board-mode .dlg { max-height: 88vh; }
 html.board-mode .wrap.end { max-width: 1100px; }
