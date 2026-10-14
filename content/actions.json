@@ -1,5 +1,37 @@
 [
  {
+  "id": "navalit_kuchu_v_karmashe",
+  "icon": "💩",
+  "title": "Навалить кучу в кармашек",
+  "text": "Если вас выгонят, вы знатно так отомстите. Заменяет случайному игроку багаж: «Кучка говна».",
+  "effect": {
+   "type": "change",
+   "op": "replace",
+   "object": "trait",
+   "key": "baggage",
+   "target": "random_player",
+   "mode": "fixed",
+   "value": "Кучка говна"
+  },
+  "dark": true,
+  "when": "auto"
+ },
+ {
+  "id": "novye_sosedi",
+  "icon": "🪳",
+  "title": "Новые соседи",
+  "text": "Если вас выгонят, добавляет в бункер новую особенность: «Тараканы на продуктовом складе».",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "feature",
+   "mode": "fixed",
+   "value": "Тараканы на продуктовом складе"
+  },
+  "dark": false,
+  "when": "auto"
+ },
+ {
   "id": "new_prof",
   "title": "Переквалификация",
   "text": "Замените свою профессию на случайную новую.",
@@ -433,7 +465,8 @@
    "object": "slots",
    "amount": 1
   },
-  "dark": false
+  "dark": false,
+  "when": "any"
  },
  {
   "id": "renovation",

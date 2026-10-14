@@ -84,7 +84,7 @@
  },
  {
   "id": "darkness",
-  "icon": "🌑",
+  "icon": "⚡",
   "name": "Нет электричества",
   "need": "morale",
   "power": 1,
