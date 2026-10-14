@@ -70,9 +70,10 @@ export const defaultSlots = n => Math.max(1, Math.floor(n / 2));
 export const textOf = x => (typeof x === 'string' ? x : x.text);
 
 // Пул контента с учётом настройки чёрного юмора
-export function pool(content, file, s) {
+// withCardOnly — включить значения «только от карт» (для случайного выбора картой действия)
+export function pool(content, file, s, withCardOnly = false) {
   const arr = content[file] || [];
-  const avail = arr.filter(x => !(x && x.onlyByCard)); // значения, которые выдают только карты действий
+  const avail = withCardOnly ? arr : arr.filter(x => !(x && x.onlyByCard)); // значения, которые выдают только карты действий
   const f = s.darkHumor ? avail : avail.filter(x => !(x && x.dark));
   return f.length ? f : avail.length ? avail : arr;
 }

@@ -1,5 +1,5 @@
-import { makeZip, downloadBlob, readZip } from './zip.js?v=3.2';
-import * as E from './effects.js?v=3.2';
+import { makeZip, downloadBlob, readZip } from './zip.js?v=3.3';
+import * as E from './effects.js?v=3.3';
 
 // ---------------- Описание разделов ----------------
 const NEEDS = [['food', '🍖', 'Еда'], ['medicine', '🩺', 'Медицина'], ['repair', '🔧', 'Ремонт'], ['defense', '🛡️', 'Защита'], ['morale', '🙂', 'Мораль'], ['reproduction', '👶', 'Род']];
@@ -11,10 +11,12 @@ const FINAL_FIELDS = [
   { k: 'weak', l: '⚠ Уязвим к проблемам', t: 'probs' },
   { k: 'causes', l: '❗ Вызывает проблемы', t: 'probs' },
 ];
+const ONLY_CARD = { k: 'onlyByCard', l: '🃏 Не выпадает при раздаче — получить можно только картой действия', t: 'check', re: true };
 const TRAIT_FIELDS = [
   { k: 'text', l: 'Значение', t: 'text', req: true },
   { k: 'desc', l: 'Описание (необязательно)', t: 'area', ph: 'Чем это полезно или опасно в бункере' },
   { k: 'dark', l: 'Чёрный юмор', t: 'check' },
+  ONLY_CARD,
   ...FINAL_FIELDS,
 ];
 
@@ -58,6 +60,7 @@ const SECTIONS = [
     { k: 'foodInfinite', l: '🍖 Бесконечная еда — перекрывает любую нужду в еде', t: 'check', re: true },
     { k: 'foodMonths', l: 'Меняет запас еды, месяцев (например 12 или -2)', t: 'num', showItem: x => !x.foodInfinite },
     { k: 'dark', l: 'Чёрный юмор', t: 'check' },
+    { ...ONLY_CARD, l: '🃏 Не выпадает при раздаче — появится только от карты действия' },
     ...FINAL_FIELDS,
   ] },
   { f: 'professions', label: 'Профессии', icon: '💼', color: '#3b82f6', hint: 'Стаж добавляется в игре автоматически.', fields: TRAIT_FIELDS },
@@ -84,6 +87,8 @@ const SECTIONS = [
     { k: 'effect.pool.size', l: 'Сколько случайных вариантов набрать в пул', t: 'num', re: true, show: ef => E.usesPool(ef) && ef.pool.source === 'random' && ef.op !== 'remove' },
     { k: 'effect.value', l: 'Значение', t: 'text', re: true, list: true, show: ef => E.hasModes(ef) && ef.mode === 'fixed' },
     { k: 'effect.infinite', l: '🍖 Бесконечно — еды хватит на любой срок', t: 'check', re: true, show: ef => ef.type === 'change' && ef.object === 'food' && ef.op !== 'remove' },
+    { k: 'effect.withCardOnly', l: '🃏 Случайный выбор может дать и значения «только от карт»', t: 'check', re: true,
+      show: ef => E.hasModes(ef) && ef.op !== 'remove' && (ef.mode === 'random' || (E.usesPool(ef) && ef.pool.source === 'random')) },
     { k: 'effect.amount', l: 'Сколько (мест или месяцев еды)', t: 'num', re: true, show: ef => E.isNumeric(ef) && !ef.infinite },
     { k: 'when', l: 'Когда можно сыграть', t: 'select', opts: E.WHEN_OPTS, re: true },
     { k: 'id', l: 'ID (латиницей, уникальный)', t: 'id', req: true },
@@ -288,6 +293,7 @@ function badges(sec, x) {
   if (sec.f !== 'tags' && (x.weak || []).length && Array.isArray(x.weak)) b.push(`<span class="ed-b nofood">⚠${x.weak.map(ti).join('')}</span>`);
   if ((x.causes || []).length) b.push(`<span class="ed-b dark">❗${x.causes.map(ti).join('')}</span>`);
   if (sec.f === 'tags' && x.deadly) b.push('<span class="ed-b dark">💀 смертельна</span>');
+  if (x.onlyByCard) b.push('<span class="ed-b">🃏 только от карт</span>');
   if (x.desc) b.push('<span class="ed-b">описание</span>');
   return b.join('');
 }
@@ -384,11 +390,12 @@ function pickerHtml(ef, i, items) {
   const file = fileFor(ef);
   if (!file) return '<div class="ed-sub">Сначала выберите конкретную характеристику — тогда появится список её значений.</div>';
   const vals = (data[file] || []).map(x => x.text).filter(Boolean);
+  const cardOnly = new Set((data[file] || []).filter(x => x.onlyByCard).map(x => x.text));
   const sel = new Set(items);
   return `<div class="pick" data-i="${i}">
     ${chipsHtml(i, items)}
     <input type="search" class="pick-q" data-pick-q="${i}" placeholder="Поиск в «${esc(SEC[file]?.label || file)}» (${vals.length})">
-    <div class="pick-list">${vals.map(v => `<label class="pick-row"><input type="checkbox" data-pick="${i}" value="${esc(v)}" ${sel.has(v) ? 'checked' : ''}><span>${esc(v)}</span></label>`).join('')}</div>
+    <div class="pick-list">${vals.map(v => `<label class="pick-row"><input type="checkbox" data-pick="${i}" value="${esc(v)}" ${sel.has(v) ? 'checked' : ''}><span>${esc(v)}${cardOnly.has(v) ? ' <i class="muted">🃏 только от карт</i>' : ''}</span></label>`).join('')}</div>
   </div>`;
 }
 function setPoolItems(i, items) {

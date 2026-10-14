@@ -5,12 +5,12 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=3.2';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.2';
-import * as E from './effects.js?v=3.2';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.2';
-import * as S from './sfx.js?v=3.2';
-import * as T from './tts.js?v=3.2';
+import * as L from './logic.js?v=3.3';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.3';
+import * as E from './effects.js?v=3.3';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.3';
+import * as S from './sfx.js?v=3.3';
+import * as T from './tts.js?v=3.3';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -640,7 +640,7 @@ function traitPartsOf(card, k) {
   const r = raw.split(SEP), v = val.split(SEP);
   return r.length === v.length ? { raw: r, val: v } : { raw: [raw], val: [val] };
 }
-function gamePool(file, g) { return L.pool(content, file, g.settings).map(L.textOf); }
+function gamePool(file, g, withCardOnly = false) { return L.pool(content, file, g.settings, withCardOnly).map(L.textOf); }
 function sample(arr, n) { return L.shuffle(arr).slice(0, n); }
 const featureFoodMonths = f => { const it = itemIn('bunkers', f) || {}; return it.foodInfinite ? 'inf' : +(it.foodMonths || 0); };
 
@@ -654,13 +654,13 @@ function choiceOptions(e, g, target, key) {
     const F = g.bunker.features, shown = F.slice(0, g.bunker.shown);
     if (e.op === 'remove') return e.pool?.source === 'preset' ? shown.filter(f => e.pool.items.includes(f)) : shown;
     const fresh = x => !F.includes(x);
-    return e.pool.source === 'preset' ? e.pool.items.filter(fresh) : sample(gamePool('bunkers', g).filter(fresh), e.pool.size);
+    return e.pool.source === 'preset' ? e.pool.items.filter(fresh) : sample(gamePool('bunkers', g, !!e.withCardOnly).filter(fresh), e.pool.size);
   }
   const file = traitFile(key);
   const own = traitPartsOf(cards[target], key).raw;
   if (e.op === 'remove') return e.pool?.source === 'preset' ? own.filter(x => e.pool.items.includes(x)) : own;
   if (e.pool.source === 'preset') return e.pool.items.filter(x => !own.includes(x));
-  return sample(gamePool(file, g).filter(x => !own.includes(x)), e.pool.size);
+  return sample(gamePool(file, g, !!e.withCardOnly).filter(x => !own.includes(x)), e.pool.size);
 }
 
 // Новое значение для добавления/замены
@@ -669,7 +669,7 @@ function pickNewValue(e, g, file, exclude, choice) {
   if (e.mode === 'pool_choice') return choice;
   let list;
   if (e.mode === 'pool_random' && e.pool.source === 'preset') list = e.pool.items.filter(Boolean);
-  else list = gamePool(file, g);
+  else list = gamePool(file, g, !!e.withCardOnly);
   const fresh = list.filter(x => !exclude.has(x));
   return L.pick(fresh.length ? fresh : list);
 }
