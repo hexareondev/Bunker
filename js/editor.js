@@ -1,5 +1,5 @@
-import { makeZip, downloadBlob, readZip } from './zip.js?v=3.3';
-import * as E from './effects.js?v=3.3';
+import { makeZip, downloadBlob, readZip } from './zip.js?v=3.4';
+import * as E from './effects.js?v=3.4';
 
 // ---------------- Описание разделов ----------------
 const NEEDS = [['food', '🍖', 'Еда'], ['medicine', '🩺', 'Медицина'], ['repair', '🔧', 'Ремонт'], ['defense', '🛡️', 'Защита'], ['morale', '🙂', 'Мораль'], ['reproduction', '👶', 'Род']];
@@ -43,7 +43,7 @@ const SECTIONS = [
     { k: 'months', l: 'Срок в месяцах — для расчёта еды (пусто — неизвестно)', t: 'num' },
     { k: 'dark', l: 'Чёрный юмор', t: 'check' },
     { t: 'heading', l: '🏁 Для финала' },
-    { k: 'needs', l: 'Что особенно важно при этой катастрофе (0…+2)', t: 'needs', imp: true },
+    { k: 'needs', l: 'По каким нуждам бьёт катастрофа (0…−2): чем ниже, тем больше нужно закрыть', t: 'needs', imp: true },
     { k: 'causes', l: '❗ Вызывает проблемы', t: 'probs' },
   ] },
   { f: 'conditions', label: 'Состояние бункера', icon: '🏚️', fields: [
@@ -51,7 +51,7 @@ const SECTIONS = [
     { k: 'desc', l: 'Описание', t: 'area' },
     { k: 'dark', l: 'Чёрный юмор', t: 'check' },
     { t: 'heading', l: '🏁 Для финала' },
-    { k: 'needs', l: 'Что особенно важно в таком бункере (0…+2)', t: 'needs', imp: true },
+    { k: 'needs', l: 'По каким нуждам бьёт такое состояние бункера (0…−2): чем ниже, тем больше нужно закрыть', t: 'needs', imp: true },
     { k: 'causes', l: '❗ Вызывает проблемы', t: 'probs' },
   ] },
   { f: 'bunkers', label: 'Особенности бункера', icon: '🏗️', fields: [
@@ -285,7 +285,8 @@ function badges(sec, x) {
   if (x.foodInfinite) b.push('<span class="ed-b food">🍖 ∞ еда</span>');
   else if (Number(x.foodMonths)) b.push(`<span class="ed-b food">${x.foodMonths > 0 ? '+' : ''}${x.foodMonths} мес.</span>`);
   const nd = x.needs || {};
-  const nv = NEEDS.filter(([id]) => Number(nd[id])).map(([id, ic]) => `${ic}${nd[id] > 0 ? '+' : ''}${nd[id]}`);
+  const imp = sec.f === 'catastrophes' || sec.f === 'conditions';
+  const nv = NEEDS.filter(([id]) => Number(nd[id])).map(([id, ic]) => { const v = imp ? -nd[id] : +nd[id]; return `${ic}${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)}`; });
   if (Number(x.food) && !nd.food) nv.unshift(`🍖${x.food > 0 ? '+' : ''}${x.food}`);
   if (nv.length) b.push(`<span class="ed-b">${nv.join(' ')}</span>`);
   const ti = id => (data.tags || []).find(t => t.id === id)?.icon || '?';
@@ -322,8 +323,11 @@ function fieldHtml(f, x, i) {
     const legacyFood = Number(x.food) && nd.food === undefined ? Number(x.food) : null;
     return `<div class="field"><span>${f.l}</span><div class="ed-needs">${NEEDS.map(([id, ic, nm]) => {
       const cv = legacyFood !== null && id === 'food' ? legacyFood : Number(nd[id] || 0);
-      return `<label class="ed-need ${cv > 0 ? 'pos' : cv < 0 ? 'neg' : ''}"><span>${ic} ${nm}</span>
-        <select data-i="${i}" data-k="needs.${id}">${vals.map(v => `<option value="${v}" ${v === cv ? 'selected' : ''}>${v > 0 ? '+' + v : v === 0 ? '0' : '−' + Math.abs(v)}</option>`).join('')}</select></label>`;
+      // у катастроф и состояний значение хранится как «важность» 0…2, а показывается как урон по нужде 0…−2
+      const shown = v => (f.imp ? -v : v);
+      const cls = shown(cv) > 0 ? 'pos' : shown(cv) < 0 ? 'neg' : '';
+      return `<label class="ed-need ${cls}"><span>${ic} ${nm}</span>
+        <select data-i="${i}" data-k="needs.${id}">${vals.map(v => { const d = shown(v); return `<option value="${v}" ${v === cv ? 'selected' : ''}>${d > 0 ? '+' + d : d === 0 ? '0' : '−' + Math.abs(d)}</option>`; }).join('')}</select></label>`;
     }).join('')}</div></div>`;
   }
   if (f.t === 'probs') {
@@ -630,7 +634,8 @@ function onField(el, isChange = false) {
   if (k.startsWith('needs.')) {
     if ('food' in item) delete item.food; // старое поле еды переезжает в нужды
     const lab = el.closest('.ed-need');
-    if (lab) { lab.classList.toggle('pos', v > 0); lab.classList.toggle('neg', v < 0); }
+    const d = cur === 'catastrophes' || cur === 'conditions' ? -v : v; // у катастроф и состояний показываем со знаком минус
+    if (lab) { lab.classList.toggle('pos', d > 0); lab.classList.toggle('neg', d < 0); }
   }
   if (k === 'id') refreshIdMsgs();
   if (k.startsWith('effect.')) {

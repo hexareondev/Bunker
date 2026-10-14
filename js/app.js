@@ -5,12 +5,12 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=3.3';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.3';
-import * as E from './effects.js?v=3.3';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.3';
-import * as S from './sfx.js?v=3.3';
-import * as T from './tts.js?v=3.3';
+import * as L from './logic.js?v=3.4';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.4';
+import * as E from './effects.js?v=3.4';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.4';
+import * as S from './sfx.js?v=3.4';
+import * as T from './tts.js?v=3.4';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
