@@ -93,7 +93,7 @@
 
 /* ---------- ID карты ---------- */
 .ed-id-row { display: flex; gap: 6px; align-items: center; }
-.ed-id-row input { flex: 1 1 auto; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; }
+.ed-id-row input { flex: 1 1 auto; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji"; font-size: .9rem; }
 .ed-id-row .btn { flex: none; white-space: nowrap; }
 .ed-id-msg { font-size: .75rem; color: var(--ok); }
 .ed-id-msg.bad { color: var(--bad); font-weight: 600; }

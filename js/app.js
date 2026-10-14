@@ -5,12 +5,12 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=3.1';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.1';
-import * as E from './effects.js?v=3.1';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.1';
-import * as S from './sfx.js?v=3.1';
-import * as T from './tts.js?v=3.1';
+import * as L from './logic.js?v=3.2';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.2';
+import * as E from './effects.js?v=3.2';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.2';
+import * as S from './sfx.js?v=3.2';
+import * as T from './tts.js?v=3.2';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -1545,6 +1545,7 @@ function ttsPrefsHtml() {
       ${state ? `<span class="small">${who} Кто читает, выбирает хост в настройках лобби.</span>` : ''}</div>
     ${vs.length ? `<label class="pref-row">Голос<select data-pref-sel="ttsVoice"><option value="">Автоматически</option>${vs.map(v => `<option value="${esc(v.voiceURI)}" ${cur === v.voiceURI ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select></label>
     <label class="pref-row">Скорость речи<input type="range" min="0.7" max="1.5" step="0.05" value="${P.ttsRate || 1}" data-pref="ttsRate"></label>
+    <label class="pref-row">Громкость диктора<input type="range" min="0" max="1" step="0.05" value="${P.ttsVol == null ? 1 : P.ttsVol}" data-pref="ttsVol"></label>
     <button class="btn small" data-tts-test>▶ Проверить голос</button>` : '<span class="small muted">На этом устройстве нет русского голоса. На Android его можно скачать в настройках «Синтез речи», на iPhone — в «Универсальный доступ → Устный контент».</span>'}`;
 }
 function openPrefs() {
@@ -1568,6 +1569,7 @@ $ov.addEventListener('change', e => {
   const sel = e.target.dataset?.prefSel;
   if (sel) { S.setPref(sel, e.target.value); T.speak('Голос выбран.', { interrupt: true }); return; }
   if (e.target.dataset?.pref === 'ttsRate') { S.setPref('ttsRate', +e.target.value); T.speak('Так звучит новая скорость.', { interrupt: true }); return; }
+  if (e.target.dataset?.pref === 'ttsVol') { S.setPref('ttsVol', +e.target.value); T.speak('Так звучит новая громкость.', { interrupt: true }); return; }
   if (e.target.dataset?.pref !== 'vol') return;
   S.setPref('vol', +e.target.value);
   S.play('flip', { mine: true });

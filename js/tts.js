@@ -1,6 +1,6 @@
 // Озвучка текста встроенным синтезатором речи браузера (Web Speech API).
 // Бесплатно, без ключей и серверов; качество голоса зависит от устройства.
-import { prefs, setPref } from './sfx.js?v=3.1';
+import { prefs, setPref } from './sfx.js?v=3.2';
 
 const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
 export const supported = !!(synth && window.SpeechSynthesisUtterance);
@@ -66,6 +66,7 @@ export function speak(text, { interrupt = false } = {}) {
     u.voice = voice;
     u.lang = voice.lang || 'ru-RU';
     u.rate = Math.max(0.6, Math.min(1.6, +prefs.ttsRate || 1));
+    u.volume = Math.max(0, Math.min(1, prefs.ttsVol == null ? 1 : +prefs.ttsVol));
     synth.speak(u);
   }
   // Chrome иногда «засыпает» после паузы — будим
