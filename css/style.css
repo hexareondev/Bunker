@@ -574,3 +574,28 @@ body.quake #app { animation: quake .9s both; }
 html.board-mode .popup { max-width: 420px; }
 html.board-mode .dlg { max-height: 88vh; }
 html.board-mode .wrap.end { max-width: 1100px; }
+
+/* ---------- Пресеты правил ---------- */
+.presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 4px 0 6px; }
+.preset { font: inherit; color: var(--text); background: var(--surface); border: 2px solid var(--line); border-radius: 12px; padding: 10px 6px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.preset:disabled { cursor: default; opacity: .8; }
+.preset.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.preset-ico { font-size: 1.4rem; line-height: 1; }
+.preset-note { margin: 0 0 10px; }
+
+/* ---------- Секретная цель, связи, события ---------- */
+.goal-card { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; margin: 8px 0 12px; border-radius: var(--radius); border: 1px dashed color-mix(in srgb, var(--act) 60%, var(--line)); background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--act) 7%, var(--surface)) 0 10px, var(--surface) 10px 20px); }
+.goal-ico { font-size: 1.8rem; line-height: 1; flex: none; }
+.goal-kind { font-size: .66rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--act); }
+.goal-text { font-size: .9rem; margin-top: 2px; }
+.rels { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; margin: 0 0 12px; display: flex; flex-direction: column; gap: 6px; }
+.rel { display: flex; gap: 10px; align-items: flex-start; }
+.rel-ico { font-size: 1.3rem; line-height: 1.2; flex: none; }
+.evlist { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 8px; }
+.evlist li { display: flex; gap: 10px; align-items: flex-start; }
+.ev-ico { font-size: 1.3rem; line-height: 1.2; flex: none; }
+.popup-bg.fx-event { --pc: var(--warn); }
+.popup.pop-event { border-color: var(--warn); }
+.secret-val { font-size: 1.15rem; font-weight: 700; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--act) 10%, var(--bg)); border: 1px dashed var(--act); margin-bottom: 8px; }
+.goals li.g-ok { border-color: color-mix(in srgb, var(--ok) 50%, var(--line)); }
+.goals li.g-fail { opacity: .85; }

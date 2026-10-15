@@ -1,5 +1,5 @@
-import { makeZip, downloadBlob, readZip } from './zip.js?v=3.6';
-import * as E from './effects.js?v=3.6';
+import { makeZip, downloadBlob, readZip } from './zip.js?v=3.7';
+import * as E from './effects.js?v=3.7';
 
 // ---------------- Описание разделов ----------------
 const NEEDS = [['food', '🍖', 'Еда'], ['medicine', '🩺', 'Медицина'], ['repair', '🔧', 'Ремонт'], ['defense', '🛡️', 'Защита'], ['morale', '🙂', 'Мораль'], ['reproduction', '👶', 'Род']];
@@ -95,6 +95,62 @@ const SECTIONS = [
     { k: 'dark', l: 'Чёрный юмор', t: 'check' },
   ] },
 ];
+// ---- Разнообразие: цели, события, связи ----
+const GOAL_KINDS = [
+  ['survive', 'Попасть в бункер'],
+  ['with', 'Попасть в бункер вместе с {target}'],
+  ['keep_out', '{target} не должен попасть в бункер'],
+  ['protect', '{target} должен попасть в бункер (сам игрок — не обязательно)'],
+  ['need', 'Нужда должна быть закрыта в финале'],
+  ['traitor', 'Предатель: бункер не должен выстоять'],
+];
+const NEED_OPTS = [['food', '🍖 Еда'], ['medicine', '🩺 Медицина'], ['repair', '🔧 Ремонт и техника'], ['defense', '🛡️ Защита'], ['morale', '🙂 Мораль'], ['reproduction', '👶 Продолжение рода']];
+const actionFields = SECTIONS.find(x => x.f === 'actions').fields;
+const EVENT_EFFECT_FIELDS = actionFields.filter(f => f.k && f.k.startsWith('effect.')).map(f => {
+  if (f.k === 'effect.type') return { ...f, l: 'Последствие события', opts: E.EVENT_KINDS };
+  if (f.k === 'effect.target') return { ...f, opts: E.EVENT_TARGETS };
+  if (f.k === 'effect.amount') return { ...f, l: 'Сколько (мест, месяцев еды или доп. раскрытий)' };
+  return f;
+});
+SECTIONS.push(
+  { f: 'goals', label: 'Секретные цели', icon: '🎯', main: 'title', color: '#7a5af8',
+    hint: 'Каждому игроку в начале выдаётся одна тайная цель; выполнена ли она — видно в финале. В тексте {target} — случайный другой игрок (для целей «вместе с», «не пустить», «защитить»).',
+    fields: [
+      { k: 'icon', l: 'Значок (эмодзи)', t: 'text', short: true },
+      { k: 'title', l: 'Название', t: 'text', req: true },
+      { k: 'text', l: 'Текст цели для игрока', t: 'area', ph: 'Попадите в бункер вместе с {target}' },
+      { k: 'kind', l: 'Как проверяется в финале', t: 'select', opts: GOAL_KINDS, re: true },
+      { k: 'need', l: 'Какая нужда', t: 'select', opts: NEED_OPTS, showItem: x => x.kind === 'need' },
+      { k: 'id', l: 'ID (латиницей, уникальный)', t: 'id', req: true },
+      { k: 'dark', l: 'Чёрный юмор', t: 'check' },
+    ] },
+  { f: 'events', label: 'События раунда', icon: '⚡', main: 'title', color: '#d97706',
+    hint: 'В начале раунда (со 2-го) в бункере может что-то случиться — если события включены в настройках лобби. Последствия выбираются так же, как у карт действий, но цель — случайные игроки.',
+    fields: [
+      { k: 'icon', l: 'Значок (эмодзи)', t: 'text', short: true },
+      { k: 'title', l: 'Название', t: 'text', req: true },
+      { k: 'text', l: 'Что случилось', t: 'area' },
+      ...EVENT_EFFECT_FIELDS,
+      { t: 'heading', l: '🏁 Для финала' },
+      { k: 'causes', l: '❗ Вызывает проблемы', t: 'probs' },
+      { k: 'id', l: 'ID (латиницей, уникальный)', t: 'id', req: true },
+      { k: 'dark', l: 'Чёрный юмор', t: 'check' },
+    ] },
+  { f: 'relations', label: 'Связи между игроками', icon: '🤝', main: 'title', color: '#0d9488',
+    hint: 'Связь выдаётся паре игроков в начале игры. {a} и {b} — их имена. Если в финале оба в бункере, связь влияет на нужды и проблемы.',
+    fields: [
+      { k: 'icon', l: 'Значок (эмодзи)', t: 'text', short: true },
+      { k: 'title', l: 'Название', t: 'text', req: true },
+      { k: 'text', l: 'Текст для игроков', t: 'area', ph: '{a} и {b} — бывшие супруги.' },
+      { k: 'together', l: 'Строка финала, если оба в бункере', t: 'area', ph: 'Бывшие супруги {a} и {b} оказались в одном бункере…' },
+      { t: 'heading', l: '🏁 Для финала (если оба в бункере)' },
+      { k: 'needs', l: 'Вклад в нужды группы (−2…+2)', t: 'needs' },
+      { k: 'causes', l: '❗ Вызывает проблемы', t: 'probs' },
+      { k: 'id', l: 'ID (латиницей, уникальный)', t: 'id', req: true },
+      { k: 'dark', l: 'Чёрный юмор', t: 'check' },
+    ] },
+);
+const ID_SECS = ['actions', 'goals', 'events', 'relations'];
 const SEC = Object.fromEntries(SECTIONS.map(s => [s.f, s]));
 const DRAFT_KEY = 'bunker.editor.draft.v1';
 
@@ -148,7 +204,8 @@ function clean(item) {
 function cleanEffect(raw) {
   const e = JSON.parse(JSON.stringify(raw || {}));
   if (e.type !== 'change') {
-    for (const k of ['op', 'object', 'target', 'mode', 'pool', 'value', 'amount']) delete e[k];
+    for (const k of ['op', 'object', 'target', 'mode', 'pool', 'value']) delete e[k];
+    if (!E.isNumeric(e)) delete e.amount;
     if (!E.needsKey(e) || !e.key) delete e.key;
     return e;
   }
@@ -173,6 +230,10 @@ function newItem(f) {
   if (f === 'catastrophes') return { title: '', text: '', duration: '', months: null, dark: false };
   if (f === 'tags') return { id: uniqueId('problem_' + Math.random().toString(36).slice(2, 5), -1), icon: '⚠️', name: '', need: 'morale', power: 1 };
   if (f === 'actions') return { id: uniqueId('card_' + Math.random().toString(36).slice(2, 6), -1, 'actions'), icon: '🃏', title: '', text: '', effect: { type: 'change', op: 'replace', object: 'trait', key: 'random', target: 'self', mode: 'random' }, dark: false };
+  const rid = p => uniqueId(p + '_' + Math.random().toString(36).slice(2, 6), -1, f);
+  if (f === 'goals') return { id: rid('goal'), icon: '🎯', title: '', text: '', kind: 'survive', dark: false };
+  if (f === 'events') return { id: rid('event'), icon: '⚡', title: '', text: '', effect: { type: 'none' }, dark: false };
+  if (f === 'relations') return { id: rid('rel'), icon: '🤝', title: '', text: '{a} и {b} — ', together: '', dark: false };
   return { text: '', dark: false };
 }
 
@@ -264,6 +325,7 @@ const GROUPS = [
   ['Мир и бункер', ['catastrophes', 'conditions', 'bunkers']],
   ['Характеристики игроков', ['professions', 'biology', 'health', 'hobbies', 'phobias', 'baggage', 'facts', 'characters']],
   ['Карты и финал', ['actions', 'tags']],
+  ['Разнообразие', ['goals', 'events', 'relations']],
 ];
 let menuOpen = false;
 function menuHtml(ch) {
@@ -301,7 +363,7 @@ function badges(sec, x) {
 
 function summaryText(sec, x) {
   const main = sec.main ? x[sec.main] : x.text;
-  const pre = sec.f === 'actions' || sec.f === 'tags' ? `${esc(x.icon || (sec.f === 'tags' ? '⚠️' : '🃏'))} ` : '';
+  const pre = x.icon !== undefined && (ID_SECS.includes(sec.f) || sec.f === 'tags') ? `${esc(x.icon || (sec.f === 'tags' ? '⚠️' : '🃏'))} ` : '';
   return `${pre}${main ? esc(main) : '<span class="muted">(пусто)</span>'}`;
 }
 
@@ -437,7 +499,7 @@ function itemHtml(sec, x, i) {
     <summary><span class="ed-sum">${summaryText(sec, x)}</span><span class="ed-badges">${badges(sec, x)}</span></summary>
     <div class="ed-fields">
       ${sec.fields.map(f => fieldHtml(f, x, i)).join('')}
-      ${sec.f === 'actions' ? `<div class="ed-preview"><b>Как сработает:</b> ${esc(E.describeEffect(x.effect))}${x.when && x.when !== 'alive' ? ` ${esc(E.whenText(x.when))}` : ''}${E.effectIssues(x.effect).length ? `<div class="ed-warn">⚠ ${esc(E.effectIssues(x.effect).join(', '))}</div>` : ''}</div>` : ''}
+      ${sec.f === 'actions' || sec.f === 'events' ? `<div class="ed-preview"><b>Как сработает:</b> ${esc(E.describeEffect(x.effect))}${x.when && x.when !== 'alive' ? ` ${esc(E.whenText(x.when))}` : ''}${E.effectIssues(x.effect).length ? `<div class="ed-warn">⚠ ${esc(E.effectIssues(x.effect).join(', '))}</div>` : ''}</div>` : ''}
       <div class="ed-item-btns">
         <button class="btn small ghost" data-a="dup" data-i="${i}">Дублировать</button>
         <button class="btn small ghost danger-text" data-a="del" data-i="${i}">Удалить</button>
@@ -512,10 +574,14 @@ function validate() {
       if (bad.length) issues.push(`Карты действий: «${x.title || '№' + (i + 1)}» — в пуле есть значения, которых больше нет в игре: ${bad.join(', ')}`);
     }
   });
-  const ids = (data.actions || []).map(a => a.id);
-  const dup = ids.filter((id, i) => id && ids.indexOf(id) !== i);
-  (data.actions || []).forEach((a, i) => { if (a.id && !/^[a-z0-9_]+$/i.test(a.id)) issues.push(`Карты действий: «${a.title || '№' + (i + 1)}» — ID «${a.id}» содержит недопустимые символы`); });
-  if (dup.length) issues.push(`Карты действий: повторяются ID — ${[...new Set(dup)].join(', ')}`);
+  for (const f of ID_SECS) {
+    const label = SEC[f].label;
+    const ids = (data[f] || []).map(a => a.id);
+    const dup = ids.filter((id, i) => id && ids.indexOf(id) !== i);
+    (data[f] || []).forEach((a, i) => { if (a.id && !/^[a-z0-9_]+$/i.test(a.id)) issues.push(`${label}: «${a.title || '№' + (i + 1)}» — ID «${a.id}» содержит недопустимые символы`); });
+    if (dup.length) issues.push(`${label}: повторяются ID — ${[...new Set(dup)].join(', ')}`);
+  }
+  (data.events || []).forEach((x, i) => { for (const msg of E.effectIssues(x.effect)) issues.push(`События раунда: «${x.title || '№' + (i + 1)}» — ${msg}`); });
   return issues;
 }
 
@@ -561,7 +627,7 @@ $ed.addEventListener('click', async e => {
     document.querySelector('.ed-item[data-i="0"] input, .ed-item[data-i="0"] textarea')?.focus();
   } else if (a === 'dup') {
     const copy = JSON.parse(JSON.stringify(data[cur][i]));
-    if (cur === 'actions') copy.id = uniqueId((copy.id || 'card') + '_copy', -1);
+    if (ID_SECS.includes(cur)) copy.id = uniqueId((copy.id || 'card') + '_copy', -1);
     data[cur].splice(i + 1, 0, copy);
     opened.add(`${cur}:${i + 1}`);
     render(); saveDraft();
@@ -655,7 +721,7 @@ function onField(el, isChange = false) {
     det.classList.toggle('mod', changedItem(cur, i));
     // поля, от которых зависят другие, перерисовывают карточку (для текста — по завершении ввода)
     if (f && f.re && (el.tagName === 'SELECT' || el.type === 'checkbox' || isChange)) rerenderItem(det, i);
-    else if (sec.f === 'actions') { const pv = det.querySelector('.ed-preview'); if (pv) pv.outerHTML = previewHtml(item); }
+    else if (sec.f === 'actions' || sec.f === 'events') { const pv = det.querySelector('.ed-preview'); if (pv) pv.outerHTML = previewHtml(item); }
   }
   saveDraft();
 }

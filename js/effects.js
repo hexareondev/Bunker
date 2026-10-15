@@ -11,7 +11,9 @@
 //   value: 'текст',                               — для mode = fixed
 //   amount: 1 }                                   — для slots и food
 //
-// Особые эффекты: swap, shuffle_all, reveal_target, immunity, double_vote, cancel_vote, bunker_reveal, revive.
+// Особые эффекты: swap, shuffle_all, reveal_target, immunity, double_vote, cancel_vote, bunker_reveal, revive,
+// peek (тайно подсмотреть), block_reveal (запрет раскрываться), steal_card, protect, peek_goal.
+// Только для событий раунда: none (без последствий), extra_reveal (всем +N раскрытий в раунде).
 
 export const TRAIT_LABELS = {
   profession: 'Профессия', biology: 'Биология', health: 'Здоровье', hobby: 'Хобби',
@@ -33,7 +35,27 @@ export const KINDS = [
   ['cancel_vote', 'Сорвать текущее голосование'],
   ['bunker_reveal', 'Открыть скрытую особенность бункера'],
   ['revive', 'Вернуть изгнанного игрока'],
+  ['peek', 'Тайно подсмотреть характеристику игрока'],
+  ['block_reveal', 'Запретить игроку раскрываться в этом раунде'],
+  ['steal_card', 'Украсть карту действия у игрока'],
+  ['protect', 'Защитить игрока от голосов в этом раунде'],
+  ['peek_goal', 'Тайно узнать секретную цель игрока'],
 ];
+// Последствия событий раунда
+export const EVENT_KINDS = [
+  ['none', 'Без последствий — только история'],
+  ['change', 'Изменение: добавить / убрать / заменить'],
+  ['swap', 'Два случайных игрока меняются характеристикой'],
+  ['shuffle_all', 'Перемешать характеристику у всех'],
+  ['reveal_target', 'Раскрыть характеристику случайного игрока'],
+  ['bunker_reveal', 'Открыть скрытую особенность бункера'],
+  ['revive', 'Вернуть случайного изгнанного'],
+  ['cancel_vote', 'В этом раунде голосования не будет'],
+  ['extra_reveal', 'Все раскрывают больше характеристик в этом раунде'],
+  ['immunity', 'Случайный игрок получает иммунитет от голосов'],
+  ['double_vote', 'Случайный игрок голосует дважды'],
+];
+export const EVENT_TARGETS = [['random_player', 'Случайному игроку'], ['all', 'Всем игрокам']];
 // Когда карту можно сыграть
 export const WHEN_OPTS = [
   ['alive', 'Только пока игрок в бункере'],
@@ -74,6 +96,7 @@ export function normalizeEffect(e) {
     case 'extra_slot': return { type: 'change', op: 'add', object: 'slots', amount: 1 };
     default: break;
   }
+  if (e.type === 'extra_reveal') e.amount = Math.max(1, +e.amount || 1);
   if (e.type === 'change') {
     e.op = e.op || 'replace';
     e.object = e.object || 'trait';
@@ -103,9 +126,9 @@ export function fixDefaults(e) {
 
 export const usesPool = e => e.type === 'change' && (e.mode === 'pool_random' || e.mode === 'pool_choice');
 export const hasModes = e => e.type === 'change' && (e.object === 'trait' || e.object === 'feature');
-export const isNumeric = e => e.type === 'change' && (e.object === 'slots' || e.object === 'food');
-export const needsKey = e => (e.type === 'change' && e.object === 'trait') || ['swap', 'shuffle_all', 'reveal_target'].includes(e.type);
-export const needsPlayer = e => ['swap', 'reveal_target', 'revive'].includes(e.type) || (e.type === 'change' && e.object === 'trait' && e.target === 'player');
+export const isNumeric = e => (e.type === 'change' && (e.object === 'slots' || e.object === 'food')) || e.type === 'extra_reveal';
+export const needsKey = e => (e.type === 'change' && e.object === 'trait') || ['swap', 'shuffle_all', 'reveal_target', 'peek'].includes(e.type);
+export const needsPlayer = e => ['swap', 'reveal_target', 'revive', 'peek', 'block_reveal', 'steal_card', 'protect', 'peek_goal'].includes(e.type) || (e.type === 'change' && e.object === 'trait' && e.target === 'player');
 export const needsChoice = e => e.type === 'change' && hasModes(e) && e.mode === 'pool_choice';
 
 function listText(items, max = 4) {
@@ -127,6 +150,13 @@ export function describeEffect(raw) {
     case 'cancel_vote': return 'Срывает текущее голосование.';
     case 'bunker_reveal': return 'Открывает следующую скрытую особенность бункера.';
     case 'revive': return 'Возвращает в игру одного изгнанного игрока.';
+    case 'peek': return `Тайно посмотреть ${e.key && e.key !== 'random' ? `«${TRAIT_LABELS[e.key]}»` : 'одну скрытую характеристику'} выбранного игрока — увидите только вы.`;
+    case 'block_reveal': return 'Выбранный игрок не может раскрывать характеристики в этом раунде.';
+    case 'steal_card': return 'Заберите у выбранного игрока случайную неиспользованную карту действия.';
+    case 'protect': return 'Голоса против выбранного игрока в этом раунде не засчитываются.';
+    case 'peek_goal': return 'Тайно узнайте секретную цель выбранного игрока.';
+    case 'none': return 'Без последствий — просто событие для атмосферы.';
+    case 'extra_reveal': return `В этом раунде каждый раскрывает на ${Math.max(1, +e.amount || 1)} ${(+e.amount || 1) === 1 ? 'характеристику' : 'характеристики'} больше.`;
     case 'change': break;
     default: return 'Неизвестное действие.';
   }

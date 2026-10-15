@@ -1,11 +1,12 @@
 // Загрузка контента из content/*.json и свои наборы карточек для лобби
-import { readZip } from './zip.js?v=3.6';
+import { readZip } from './zip.js?v=3.7';
 
-export const FILES = ['tags', 'conditions', 'professions', 'biology', 'health', 'hobbies', 'phobias', 'baggage', 'facts', 'characters', 'catastrophes', 'bunkers', 'actions'];
+export const FILES = ['tags', 'conditions', 'professions', 'biology', 'health', 'hobbies', 'phobias', 'baggage', 'facts', 'characters', 'catastrophes', 'bunkers', 'actions', 'goals', 'events', 'relations'];
 export const FILE_LABELS = {
   tags: 'Проблемы (для финала)', catastrophes: 'Катастрофы', conditions: 'Состояния бункера', bunkers: 'Особенности бункера',
   professions: 'Профессии', biology: 'Биология', health: 'Здоровье', hobbies: 'Хобби', phobias: 'Фобии',
   baggage: 'Багаж', facts: 'Факты', characters: 'Характер', actions: 'Карты действий',
+  goals: 'Секретные цели', events: 'События раунда', relations: 'Связи между игроками',
 };
 let cache = null;
 

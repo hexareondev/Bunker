@@ -129,6 +129,15 @@ python -m http.server 8000
 
 Поле `onlyByCard: true` у значения характеристики или особенности бункера — оно не выпадает при раздаче и в случайном выборе карт; получить его можно только картой действия с заданным списком (`pool.source: "preset"`) или конкретным значением (`mode: "fixed"`). Если у эффекта стоит `withCardOnly: true`, случайный выбор этой карты тоже может дать такие значения.
 
+Новые типы карт: `peek` (тайно подсмотреть характеристику, `key` — какую или `random`), `peek_goal` (узнать секретную цель), `block_reveal` (запрет раскрываться в раунде), `steal_card` (украсть карту действия), `protect` (защита игрока от голосов).
+
+Разнообразие (`content/goals.json`, `events.json`, `relations.json`, редактируются в редакторе в группе «Разнообразие»):
+- цель: `{ id, icon, title, text, kind, need? }`, `kind`: `survive`, `with`, `keep_out`, `protect` (в тексте `{target}` — случайный другой игрок), `need` (+ поле `need`), `traitor`;
+- событие: `{ id, icon, title, text, effect, causes? }`, `effect.type` — как у карт (`change`, `swap`, `shuffle_all`, `reveal_target`, `bunker_reveal`, `revive`, `cancel_vote`, `immunity`, `double_vote`) плюс `none` и `extra_reveal` (`amount` — сколько доп. раскрытий); цели выбираются случайно;
+- связь: `{ id, icon, title, text, together, needs?, causes? }`, в текстах `{a}` и `{b}` — имена; `needs`/`causes` действуют в финале, если оба в бункере.
+
+Настройки лобби: `goals`, `goalsTraitor` (off/maybe/always), `events` (off/some/every), `relations` (off/few/many), `relationsPublic`. Пресеты описаны в `js/extras.js` (`PRESETS`).
+
 Поле `when` у карты — когда её можно сыграть: `alive` (по умолчанию, только пока игрок в бункере), `any` (и после изгнания), `exiled` (только после изгнания), `auto` (срабатывает сама при изгнании владельца; цель и вариант выбираются случайно; карты иммунитета, двойного голоса и саботажа так не срабатывают).
 
 Составной эффект (`"type": "change"`) собирается из частей:

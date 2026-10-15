@@ -5,13 +5,14 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=3.6';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.6';
-import * as E from './effects.js?v=3.6';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.6';
-import * as S from './sfx.js?v=3.6';
-import * as T from './tts.js?v=3.6';
-import { qrSvg } from './qr.js?v=3.6';
+import * as L from './logic.js?v=3.7';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.7';
+import * as E from './effects.js?v=3.7';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.7';
+import * as S from './sfx.js?v=3.7';
+import * as T from './tts.js?v=3.7';
+import { qrSvg } from './qr.js?v=3.7';
+import * as X from './extras.js?v=3.7';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -238,13 +239,17 @@ function actionAnim(e) {
     case 'revive': return g('fxa-heart', '❤️');
     case 'reveal_target': return g('fxa-eye', '👁️');
     case 'bunker_reveal': return g('fxa-door', '🚪');
+    case 'peek': case 'peek_goal': return g('fxa-eye', '🔍');
+    case 'block_reveal': return g('fxa-stamp', '🙊', '<span class="x">✕</span>');
+    case 'steal_card': return g('fxa-spin', '🤏');
+    case 'protect': return g('fxa-shield', '🛡️');
     case 'add': return g('fxa-pop', e.icon || '➕');
     case 'remove': return g('fxa-crumble', e.icon || '➖');
     case 'replace': return g('fxa-spin', e.icon || '🔄');
     default: return g('fxa-pop', e.icon || '🃏');
   }
 }
-const ACT_SOUND = { swap: 'swap', shuffle_all: 'swap', immunity: 'shield', double_vote: 'action', cancel_vote: 'stamp', revive: 'heart', bunker_reveal: 'bunker' };
+const ACT_SOUND = { swap: 'swap', shuffle_all: 'swap', immunity: 'shield', protect: 'shield', double_vote: 'action', cancel_vote: 'stamp', block_reveal: 'stamp', revive: 'heart', bunker_reveal: 'bunker', steal_card: 'swap' };
 
 // Недавние изменения на карточках — подсвечиваются анимацией
 // Пока идёт окно раскрытия, карточка лежит «рубашкой вверх»; после окна переворачивается один раз.
@@ -371,6 +376,10 @@ function notifyEntry(e) {
     const sub = [featureDesc(e.feature), fm === 'inf' ? '🍖 Еда: бесконечно' : fm ? `🍖 Еда: ${fm > 0 ? '+' : '−'}${L.monthsText(Math.abs(fm))}` : ''].filter(Boolean).join(' ');
     narrate(`${e.round ? `Раунд ${e.round}. ` : ''}Открыта особенность бункера: ${sayFeature(e.feature)}`);
     showPopup({ cls: 'info', fx: 'info', back: '🚪', top: e.round ? `Раунд ${e.round}` : 'Бункер', label: 'Открыта особенность бункера', value: e.feature, sub, sound: 'bunker' });
+  }
+  else if (e.type === 'event') {
+    narrate(`Событие раунда. ${dot(e.title)} ${dot(e.etext)} ${dot(e.out)}`);
+    showPopup({ cls: 'pop-event', fx: 'event', back: e.icon || '⚡', top: `Событие · раунд ${e.round}`, icon: e.icon || '⚡', value: e.title, sub: [e.etext, e.out].filter(Boolean).join(' '), sound: 'bunker', long: true });
   }
   else if (e.type === 'vote' || e.type === 'presence') { if (e.actor !== me.id) { toast(e.text, 'small'); if (e.type === 'vote') S.play('vote'); } }
   else { toast(e.text); S.play('pop'); }
@@ -567,6 +576,9 @@ async function startGame() {
   if (ids.length < 2) return toast('Нужно минимум 2 игрока', 'warn');
   if (ids.length < 4 && !(await ask(`Игроков всего ${ids.length}. Обычно играют от 6. Начать всё равно?`, 'Начать'))) return;
   const { cards, game } = L.newGame(ids, content, s, now());
+  if (s.goals) { const goals = X.assignGoals(game.players, content, s); for (const p of Object.keys(goals)) cards[p].goal = goals[p]; }
+  const rels = X.assignRelations(game.players, content, s);
+  if (rels.length) game.relations = rels;
   const upd = { cards, game, 'meta/status': 'playing', log: null };
   validPlayers().forEach(([id]) => { upd[`players/${id}/spectator`] = null; });
   await update(R(''), upd);
@@ -614,6 +626,7 @@ async function doAdvance(expectedVersion) {
         if (ex) { addLog(g.event, { type: 'exile', pid: ex, who: nameOf(ex) }); triggerExileCards(ex); }
         else if (feat && (g.bunker.shown || 0) > (before?.bunker?.shown || 0)) addLog(`Раунд ${g.round}. В бункере открыто: ${feat}`, { type: 'bunker', round: g.round, feature: feat });
         else if (!/время вышло/.test(g.event)) addLog(g.event, { type: 'game' });
+        if (newRound) triggerRoundEvent(g.round);
       }
     }
   } catch (e) { console.error(e); } finally { advancing = false; }
@@ -695,6 +708,10 @@ function targetsFor(effect, owner = me.id) {
     case 'revive': return g.players.filter(p => !g.alive[p] && p !== owner);
     case 'reveal_target': return alive.filter(p => p !== owner && (e.key && e.key !== 'random' ? L.hiddenKeys(g, p).includes(e.key) : L.hiddenKeys(g, p).length > 0));
     case 'change': return alive; // можно выбрать и себя
+    case 'peek': return alive.filter(p => p !== owner && (e.key && e.key !== 'random' ? L.hiddenKeys(g, p).includes(e.key) : L.hiddenKeys(g, p).length > 0));
+    case 'steal_card': return g.players.filter(p => p !== owner && (state.cards?.[p]?.actions || []).some(a => a && !a.used));
+    case 'peek_goal': return g.players.filter(p => p !== owner && state.cards?.[p]?.goal);
+    case 'protect': return alive; // можно и себя
     default: return alive.filter(p => p !== owner);
   }
 }
@@ -861,6 +878,7 @@ async function useAction(i, ctx = {}) {
   const prefix = auto ? `При изгнании @${owner}@ сработала карта «${a.title}»` : `@${owner}@ применил(а) карту «${a.title}»`;
   let msg = prefix;
   let revealExtra = null;
+  let secret = null; // то, что видит только применивший карту
 
   const put = (pid, k, from) => {
     upd[`cards/${pid}/traits/${k}`] = from.traits[k];
@@ -909,6 +927,37 @@ async function useAction(i, ctx = {}) {
       break;
     case 'revive':
       upd[`game/alive/${target}`] = true; msg += `: @${target}@ возвращается в игру`; break;
+    case 'peek': {
+      if (auto) return;
+      const hid = L.hiddenKeys(g, target);
+      let k = e.key && e.key !== 'random' ? e.key : null;
+      if (!k || !hid.includes(k)) k = hid.length ? L.pick(hid) : null;
+      if (!k) return fail('У этого игрока уже всё раскрыто');
+      secret = { title: `«${L.traitLabel(k)}» у ${nameOf(target)}`, text: cards[target].traits[k], desc: cardDesc(target, k) };
+      msg += `: тайно подсмотрел(а) «${L.traitLabel(k)}» у @${target}@`; break;
+    }
+    case 'peek_goal': {
+      if (auto) return;
+      const goal = cards[target]?.goal;
+      if (!goal) return fail('У этого игрока нет секретной цели');
+      secret = { title: `Секретная цель ${nameOf(target)}`, text: `${goal.icon || '🎯'} ${goal.title}: ${X.goalText(goal, nameOf)}` };
+      msg += `: тайно узнал(а) секретную цель @${target}@`; break;
+    }
+    case 'block_reveal':
+      upd[`game/effects/blocked/${target}`] = g.round; msg += `: @${target}@ не может раскрываться в этом раунде`; break;
+    case 'protect':
+      upd[`game/effects/immune/${target}`] = g.round; msg += `: @${target}@ под защитой — голоса против не считаются в этом раунде`; break;
+    case 'steal_card': {
+      const theirs = (cards[target]?.actions || []).map((x, j) => ({ x, j })).filter(o => o.x && !o.x.used);
+      if (!theirs.length) return fail('У этого игрока нет неиспользованных карт');
+      const st = L.pick(theirs);
+      const mine = cards[owner]?.actions || [];
+      upd[`cards/${target}/actions/${st.j}/used`] = true;
+      upd[`cards/${target}/actions/${st.j}/stolen`] = true;
+      upd[`cards/${owner}/actions/${mine.length}`] = { ...JSON.parse(JSON.stringify(st.x)), used: false, stolen: null };
+      if (!auto) secret = { title: 'Украденная карта', text: `${st.x.icon || '🃏'} ${st.x.title}`, desc: st.x.text || E.describeEffect(st.x.effect) };
+      msg += `: забрал(а) карту действия у @${target}@`; break;
+    }
     default:
       return fail('Неизвестная карта действия', 'warn');
   }
@@ -920,8 +969,117 @@ async function useAction(i, ctx = {}) {
   if (e.type === 'swap') Object.assign(fx, { a: ownerName, b: nameOf(target), pa: owner, pb: target, key, label });
   if (e.type === 'shuffle_all') Object.assign(fx, { key });
   if (target) fx.target = target;
+  if (secret && owner === me.id) setTimeout(() => dialog({ title: `🤫 ${secret.title}`, html: `<div class="secret-val">${esc(secret.text)}</div>${secret.desc ? `<p class="muted small">${esc(secret.desc)}</p>` : ''}<p class="muted small">Это видите только вы.</p>`, ok: 'Понятно', cancel: '' }), 3800);
   addLog(msg, { type: 'action', actor: owner, who: ownerName, title: a.title, sub, icon: actIcon(a), fx, ...(auto ? { auto: true } : {}),
     ...(revealExtra && revealExtra.label ? { label: revealExtra.label, value: revealExtra.value } : {}) });
+}
+
+// ---------- События раунда (запускает тот, кто ведёт игру) ----------
+async function triggerRoundEvent(round) {
+  await new Promise(r => setTimeout(r, 400));
+  if (!state?.game || !content) return;
+  const g = L.norm(clone(state.game));
+  if (g.round !== round || g.phase === 'end') return;
+  const done = Array.isArray(g.eventLog) ? g.eventLog : Object.values(g.eventLog || {});
+  if (done.some(e => e && e.round === round)) return;
+  if (!X.shouldHaveEvent(g.settings, round)) return;
+  const ev = X.pickEvent(content, g.settings, done.map(e => e?.id));
+  if (!ev) return;
+  const upd = {};
+  const out = applyEventEffect(ev, g, upd);
+  const entry = { round, id: ev.id || '', title: ev.title || 'Событие', icon: ev.icon || '⚡', text: ev.text || '', out: out.join('; ') };
+  upd[`game/eventLog/${done.length}`] = entry;
+  await update(R(''), upd);
+  const sub = [ev.text, out.length ? out.join('; ') : ''].filter(Boolean).join(' ');
+  addLog(`Событие раунда ${round}: ${entry.title}${out.length ? ` — ${out.join('; ')}` : ''}`, { type: 'event', round, title: entry.title, icon: entry.icon, etext: ev.text || '', out: fillNames(out.join('; ')) });
+  for (const x of out.reveals || []) addLog(`Событие раскрыло у @${x.pid}@ «${x.label}»: ${x.value}`, { type: 'reveal', pid: x.pid, who: nameOf(x.pid), key: x.key, label: x.label, value: x.value, desc: cardDesc(x.pid, x.key) });
+  if (out.feature) addLog(`В бункере открыто: ${out.feature}`, { type: 'bunker', round, feature: out.feature });
+}
+// Последствия события. Возвращает фразы для журнала (+ доп. сведения в полях массива)
+function applyEventEffect(ev, g, upd) {
+  const e = E.normalizeEffect(ev.effect || { type: 'none' });
+  const cards = state.cards || {};
+  const alive = L.aliveIds(g);
+  const out = [];
+  const rnd = list => (list.length ? L.pick(list) : null);
+  const put = (pid, k, from) => {
+    upd[`cards/${pid}/traits/${k}`] = from.traits[k];
+    upd[`cards/${pid}/raw/${k}`] = from.raw?.[k] || from.traits[k];
+    if (k === 'biology') upd[`cards/${pid}/age`] = from.age;
+  };
+  const key = !e.key || e.key === 'random' ? L.pick(L.TRAIT_KEYS) : e.key;
+  switch (e.type) {
+    case 'change': {
+      const e2 = { ...e };
+      if (e2.object === 'trait' && (e2.target === 'self' || e2.target === 'player')) e2.target = 'random_player';
+      const ctx = { owner: '__event__', key: e2.object === 'trait' ? key : undefined };
+      if (E.needsChoice(e2)) {
+        const tgt = e2.object === 'trait' ? rnd(alive) : undefined;
+        const opts = choiceOptions(e2, g, tgt, ctx.key);
+        if (!opts.length) break;
+        ctx.choice = L.pick(opts);
+        if (tgt) { e2.target = 'player'; ctx.target = tgt; }
+      }
+      const r = applyChange(e2, g, ctx, upd);
+      out.push(...r.out);
+      if (r.popup?.type === 'bunker') out.feature = r.popup.feature;
+      break;
+    }
+    case 'swap': {
+      const [a, b] = L.shuffle(alive);
+      if (!a || !b) break;
+      put(a, key, cards[b]); put(b, key, cards[a]);
+      out.push(`@${a}@ и @${b}@ поменялись характеристикой «${L.traitLabel(key)}»`);
+      break;
+    }
+    case 'shuffle_all': {
+      const sh = L.shuffle(alive.map(p => cards[p]));
+      alive.forEach((p, j) => put(p, key, sh[j]));
+      out.push(`у всех перемешана характеристика «${L.traitLabel(key)}»`);
+      break;
+    }
+    case 'reveal_target': {
+      const cand = alive.filter(p => L.hiddenKeys(g, p).length);
+      const p = rnd(cand);
+      if (!p) break;
+      const hid = L.hiddenKeys(g, p);
+      const k = e.key && e.key !== 'random' && hid.includes(e.key) ? e.key : L.pick(hid);
+      upd[`game/revealed/${p}/${k}`] = true;
+      out.reveals = [{ pid: p, key: k, label: L.traitLabel(k), value: cards[p]?.traits?.[k] || '' }];
+      out.push(`у @${p}@ раскрыто «${L.traitLabel(k)}»`);
+      break;
+    }
+    case 'bunker_reveal':
+      if (g.bunker.shown >= g.bunker.features.length) break;
+      upd['game/bunker/shown'] = g.bunker.shown + 1;
+      out.feature = g.bunker.features[g.bunker.shown];
+      out.push(`в бункере открыто: ${out.feature}`);
+      break;
+    case 'revive': {
+      const p = rnd(g.players.filter(x => !g.alive[x]));
+      if (!p) { out.push('но вернуться было некому'); break; }
+      upd[`game/alive/${p}`] = true;
+      out.push(`@${p}@ возвращается в игру`);
+      break;
+    }
+    case 'cancel_vote':
+      upd['game/effects/cancelVote'] = g.round;
+      out.push('в этом раунде голосования не будет');
+      break;
+    case 'extra_reveal':
+      upd[`game/effects/extraReveal/${g.round}`] = e.amount;
+      out.push(`в этом раунде каждый раскрывает на ${e.amount} больше`);
+      break;
+    case 'immunity': case 'double_vote': {
+      const p = rnd(alive);
+      if (!p) break;
+      upd[`game/effects/${e.type === 'immunity' ? 'immune' : 'double'}/${p}`] = g.round;
+      out.push(e.type === 'immunity' ? `@${p}@ получает иммунитет в этом раунде` : `голос @${p}@ в этом раунде считается за два`);
+      break;
+    }
+    default: break;
+  }
+  return out;
 }
 
 // Карты, которые срабатывают сами при изгнании владельца (запускает тот, кто изгнал)
@@ -1050,6 +1208,11 @@ const FIELDS = [
   { k: 'resultTime', t: 'num', l: 'Показ итога, сек', min: 0, max: 120 },
   { k: 'narration', t: 'select', l: 'Кто зачитывает катастрофу, бункер и новые особенности', opts: { host: 'Телефон хоста (все в одной комнате)', board: 'Табло на общем экране', all: 'Каждое устройство (игра по видеосвязи)', off: 'Никто' } },
   { k: 'narrateFinal', t: 'check', l: 'Зачитывать историю в финале' },
+  { k: 'goals', t: 'check', l: '🎯 Секретные цели — у каждого своя тайная цель, итог в финале' },
+  { k: 'goalsTraitor', t: 'select', l: 'Предатель среди целей (нужно от 4 игроков)', opts: { off: 'Нет', maybe: 'Иногда (в половине игр)', always: 'Всегда один' } },
+  { k: 'events', t: 'select', l: '⚡ События раунда — что-то случается в бункере в начале раунда', opts: { off: 'Выключены', some: 'Иногда', every: 'Каждый раунд (со 2-го)' } },
+  { k: 'relations', t: 'select', l: '🤝 Связи между игроками — родственники, бывшие, должники…', opts: { off: 'Выключены', few: 'У некоторых', many: 'Почти у всех' } },
+  { k: 'relationsPublic', t: 'check', l: 'Связи видят все (иначе — только сами участники)' },
 ];
 
 // Разделы настроек лобби (сворачиваются)
@@ -1065,6 +1228,8 @@ const SECTIONS = [
     sum: s => `${s.actionCards ? `карт действий: ${s.actionsPerPlayer}` : 'без карт действий'} · ${s.darkHumor ? 'с чёрным юмором' : 'без чёрного юмора'}` },
   { id: 'timers', icon: '⏱️', title: 'Таймеры', keys: ['speechTime', 'discussionTime', 'voteTime', 'resultTime'],
     sum: s => `речь ${secs(s.speechTime)} · обсуждение ${secs(s.discussionTime)} · голосование ${secs(s.voteTime)}` },
+  { id: 'extra', icon: '🎭', title: 'Цели, события и связи', keys: ['goals', 'goalsTraitor', 'events', 'relations', 'relationsPublic'],
+    sum: s => [s.goals ? `цели${s.goalsTraitor !== 'off' ? ' + предатель' : ''}` : '', s.events && s.events !== 'off' ? `события: ${s.events === 'every' ? 'каждый раунд' : 'иногда'}` : '', s.relations && s.relations !== 'off' ? `связи: ${s.relations === 'many' ? 'почти у всех' : 'у некоторых'}` : ''].filter(Boolean).join(' · ') || 'всё выключено' },
   { id: 'voice', icon: '🔊', title: 'Озвучка', keys: ['narration', 'narrateFinal'],
     sum: s => `${({ host: 'читает хост', board: 'читает табло', all: 'читают все', off: 'выключена' })[s.narration] || 'читает хост'}${s.narration !== 'off' && s.narrateFinal ? ' · финал тоже' : ''}` },
   { id: 'final', icon: '🏁', title: 'Финал', keys: ['finalMode', 'finalFates', 'finalExiled'],
@@ -1076,11 +1241,24 @@ function toggleSec(id) {
   try { localStorage.setItem('bunker.openSecs', JSON.stringify([...openSecs])); } catch {}
   render();
 }
+function presetsHtml(s, host) {
+  const cur = X.presetOf(s);
+  return `<div class="presets">${Object.entries(X.PRESETS).map(([k, p]) => `<button class="preset ${cur === k ? 'on' : ''}" ${host ? `data-a="preset" data-p="${k}"` : 'disabled'} title="${esc(p.desc)}"><span class="preset-ico">${p.icon}</span><b>${p.title}</b></button>`).join('')}</div>
+    <p class="muted small preset-note">${cur ? esc(X.PRESETS[cur].desc) : host ? 'Свои настройки. Нажмите на пресет, чтобы выставить готовый набор правил.' : 'Хост настроил правила вручную.'}</p>`;
+}
+async function applyPreset(k) {
+  const p = X.PRESETS[k];
+  if (!p || !isHost()) return;
+  const upd = {};
+  for (const [key, v] of Object.entries(p.set)) upd[`settings/${key}`] = v;
+  await update(R(''), upd);
+  toast(`Пресет «${p.title}» применён`);
+}
 function settingsHtml(s, host) {
   const byKey = Object.fromEntries(FIELDS.map(f => [f.k, f]));
   const rest = FIELDS.filter(f => !SECTIONS.some(x => x.keys.includes(f.k)));
   const secList = rest.length ? [...SECTIONS, { id: 'other', icon: '⚙️', title: 'Прочее', keys: rest.map(f => f.k), sum: () => '' }] : SECTIONS;
-  return `<div class="secs">${secList.map(sec => {
+  return `${presetsHtml(s, host)}<div class="secs">${secList.map(sec => {
     const open = openSecs.has(sec.id);
     const fields = sec.keys.map(k => byKey[k]).filter(Boolean);
     const body = host
@@ -1378,15 +1556,29 @@ function tabMe(g, playing) {
     ${alive ? '' : '<div class="err">Вы изгнаны из бункера. Можно наблюдать и обсуждать.</div>'}
     ${g.effects.immune[me.id] === g.round ? '<div class="tag ok">Иммунитет в этом раунде</div>' : ''}
     ${g.effects.double[me.id] === g.round ? '<div class="tag ok">Двойной голос в этом раунде</div>' : ''}
+    ${g.effects.blocked[me.id] === g.round ? '<div class="tag bad">🙊 В этом раунде вы не можете раскрываться</div>' : ''}
+    ${card?.goal ? `<div class="goal-card"><span class="goal-ico">${card.goal.icon || '🎯'}</span><div><div class="goal-kind">Секретная цель · видите только вы</div><b>${esc(card.goal.title)}</b><div class="goal-text">${esc(X.goalText(card.goal, nameOf))}</div></div></div>` : ''}
+    ${relationsHtml(g, true)}
     ${traitRows(me.id, g, { mine: true })}
     ${acts.length ? `<h3>Карты действий</h3>
       <div class="acts">${acts.map((a, i) => `
         <div class="act ${a.used ? 'used' : ''}">
           <span class="act-ico">${actIcon(a)}</span>
           <div class="act-body"><div class="act-kind">Карта действия${E.whenTag(a.when) ? ` · ${E.whenTag(a.when)}` : ''}</div><b>${esc(a.title)}</b><div class="act-text">${esc(a.text || E.describeEffect(a.effect))}</div></div>
-          <div class="act-side">${a.used ? '<span class="tag">использована</span>' : actionControl(a, i, g)}</div>
+          <div class="act-side">${a.used ? `<span class="tag">${a.stolen ? 'украдена' : 'использована'}</span>` : actionControl(a, i, g)}</div>
         </div>`).join('')}</div>` : ''}
     <button class="btn ghost" data-a="leave">Выйти (можно вернуться)</button>`;
+}
+
+// Связи между игроками: свои — всегда, чужие — только если они открыты для всех
+function gameRelations(g) { const r = g.relations; return (Array.isArray(r) ? r : Object.values(r || {})).filter(Boolean); }
+function relationsHtml(g, mineOnly) {
+  const pub = !!g.settings.relationsPublic;
+  let list = gameRelations(g);
+  if (mineOnly) list = list.filter(r => r.a === me.id || r.b === me.id);
+  else if (!pub) return '';
+  if (!list.length) return '';
+  return `<div class="rels"><div class="tl">${mineOnly ? 'Ваши связи' : 'Связи между игроками'}${mineOnly && !pub ? ' · знаете только вы двое' : ''}</div>${list.map(r => `<div class="rel"><span class="rel-ico">${r.icon || '🤝'}</span><div><b>${esc(r.title)}</b><div class="small">${esc(X.relText(r, nameOf))}</div></div></div>`).join('')}</div>`;
 }
 
 // Почему карту нельзя применить прямо сейчас ('' — можно)
@@ -1413,6 +1605,18 @@ function actionBlockReason(a, g) {
       return '';
     case 'bunker_reveal':
       return g.bunker.shown >= g.bunker.features.length ? 'Все особенности бункера открыты' : '';
+    case 'peek':
+      return targetsFor(e).length ? '' : 'Подсматривать нечего';
+    case 'steal_card':
+      return targetsFor(e).length ? '' : 'Красть нечего';
+    case 'peek_goal':
+      if (!g.settings.goals) return 'В этой игре нет секретных целей';
+      return targetsFor(e).length ? '' : 'Не у кого узнать цель';
+    case 'protect':
+      if (g.phase === 'result' || !L.needsVote(g)) return 'В этом раунде нет голосования';
+      return '';
+    case 'block_reveal':
+      return targetsFor(e).length ? '' : 'Некого';
     case 'revive':
       return targetsFor(e).length ? '' : 'Изгнанных пока нет';
     case 'reveal_target': {
@@ -1454,7 +1658,7 @@ function actionControl(a, i, g) {
 
 function tabPlayers(g) {
   const s = g.settings;
-  return `<div class="players">${g.players.map(p => {
+  return `${relationsHtml(g, false)}<div class="players">${g.players.map(p => {
     const pl = state.players?.[p] || {};
     const alive = g.alive[p] || isPending(p);
     const hidden = L.hiddenKeys(g, p).length;
@@ -1464,7 +1668,7 @@ function tabPlayers(g) {
     return `<div class="pcard ${alive ? '' : 'dead'} ${L.currentSpeaker(g) === p ? 'speaking' : ''} ${freshCls(p)}">
       <div class="phead"><span class="dot ${pl.online ? 'on' : ''}"></span><b>${esc(pl.name || '???')}</b>${p === me.id ? ' <span class="muted">(вы)</span>' : ''}
         ${alive ? '' : '<span class="tag bad">изгнан</span>'}
-        ${g.effects.immune[p] === g.round ? '<span class="tag ok">иммунитет</span>' : ''}${voteInfo}</div>
+        ${g.effects.immune[p] === g.round ? '<span class="tag ok">иммунитет</span>' : ''}${g.effects.blocked[p] === g.round ? '<span class="tag bad">🙊 молчит</span>' : ''}${voteInfo}</div>
       ${traitRows(p, g)}
       ${hidden ? `<div class="muted small">Скрыто: ${hidden}</div>` : ''}
     </div>`;
@@ -1502,7 +1706,14 @@ function tabBunker(g) {
       ${g.bunker.condition ? `<div class="cond"><span class="cond-label">Состояние</span><b>${esc(g.bunker.condition.text)}</b>${g.bunker.condition.desc ? `<span class="feat-desc">${esc(g.bunker.condition.desc)}</span>` : ''}</div>` : ''}
       ${foodNote(g)}
       <ul class="feats">${f.map((x, i) => `<li>${i < g.bunker.shown ? featureItem(x) : '<span class="muted">??? (откроется позже)</span>'}</li>`).join('')}</ul>
-    </div>`;
+    </div>
+    ${eventsHtml(g)}`;
+}
+
+function eventsHtml(g) {
+  const list = (Array.isArray(g.eventLog) ? g.eventLog : Object.values(g.eventLog || {})).filter(Boolean);
+  if (!list.length) return '';
+  return `<div class="card"><div class="tl">События</div><ul class="evlist">${list.slice().reverse().map(e => `<li><span class="ev-ico">${e.icon || '⚡'}</span><div><b>${esc(e.title)}</b> <span class="muted small">раунд ${e.round}</span><div class="small">${esc(e.text)}${e.out ? ` <i>${esc(fillNames(e.out))}</i>` : ''}</div></div></li>`).join('')}</ul></div>`;
 }
 
 function tabLog() {
@@ -1693,6 +1904,7 @@ function renderEnd() {
     storyRequested = storyKey;
     try {
       const fin = makeFinal(g, cards, names, content, g.settings);
+      fin.goals = X.evalGoals(g, cards, fin, nameOf);
       update(R('game'), { final: JSON.parse(JSON.stringify(fin)), story: fin.story }).catch(console.error);
     } catch (e) { console.error(e); }
   }
@@ -1713,6 +1925,10 @@ function renderEnd() {
   const fates = arr(fin?.fates);
   const fatesHtml = fates.length ? `<h2>Судьбы</h2><ul class="fates">${fates.map(f => `<li class="f-${f.status}"><span class="f-ico">${{ alive: '🟢', hurt: '🟠', dead: '💀' }[f.status] || '•'}</span><span>${esc(f.text)}</span></li>`).join('')}</ul>` : '';
   const exiled = arr(fin?.exiled);
+  const goalsArr = arr(fin?.goals);
+  const goalsHtml = goalsArr.length ? `<h2>Секретные цели</h2><ul class="fates goals">${goalsArr.map(x => `<li class="${x.ok ? 'g-ok' : 'g-fail'}"><span class="f-ico">${x.ok ? '✅' : '❌'}</span><span><b>${esc(x.name)}</b> ${x.traitor ? '<span class="tag bad">предатель</span>' : ''} — ${esc(x.icon || '')} ${esc(x.title)}: ${esc(x.text)}</span></li>`).join('')}</ul>` : '';
+  const relArr = arr(fin?.relations);
+  const relHtml = relArr.length ? `<h2>Связи</h2><ul class="fates">${relArr.map(r => `<li><span class="f-ico">${esc(r.icon || '🤝')}</span><span><b>${esc(r.title)}.</b> ${esc(r.text)}${r.line ? ` <i>${esc(r.line)}</i>` : r.together ? '' : ' <span class="muted">В бункер вместе они не попали.</span>'}</span></li>`).join('')}</ul>` : '';
   const exiledHtml = exiled.length ? `<h2>Изгнанные</h2><ul class="fates">${exiled.map(x => `<li class="x-${x.kind}"><span class="f-ico">${x.kind === 'regret' ? '😔' : '👍'}</span><span>${esc(x.text)}</span></li>`).join('')}</ul>` : '';
   const story = arr(fin?.story).length ? arr(fin.story) : arr(state.game.story);
   if (fin && ui.endAnim?.key !== storyKey) { ui.endAnim = { key: storyKey, t: Date.now() }; celebrate(fin); }
@@ -1723,7 +1939,7 @@ function renderEnd() {
     <h1 class="logo small">Финал</h1>
     ${verdict}
     <div class="card story">${story.length ? `<div class="tl">История ${sayBtn('final')}</div>` : ''}${story.length ? story.map(x => `<p>${esc(x)}</p>`).join('') : '<p class="muted">Подводим итоги…</p>'}</div>
-    ${needsHtml}${probsHtml}${fatesHtml}${exiledHtml}
+    ${goalsHtml}${needsHtml}${probsHtml}${fatesHtml}${relHtml}${exiledHtml}
     <h2>Выжившие · ${surv.length}</h2><div class="players">${block(surv)}</div>
     <h2>Остались снаружи · ${out.length}</h2><div class="players">${block(out)}</div>
     <div class="card"><div class="tl">Бункер</div><ul class="feats">${g.bunker.features.map(f => `<li>${featureItem(f)}</li>`).join('')}</ul></div>
@@ -1765,6 +1981,7 @@ $app.addEventListener('click', async e => {
       case 'prefs': await openPrefs(); break;
       case 'sec': toggleSec(b.dataset.sec); break;
       case 'say': sayAgain(b.dataset.say); break;
+      case 'preset': await applyPreset(b.dataset.p); break;
       case 'reveal': await revealMine(b.dataset.key); break;
       case 'done': {
         const g = L.norm(clone(state.game));

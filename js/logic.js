@@ -33,6 +33,11 @@ export const DEFAULT_SETTINGS = {
   narration: 'host',      // озвучка: host — читает устройство хоста, all — все, off — выключена
   narrateFinal: true,     // зачитывать историю финала
   showMarkers: false,     // метки нужд и проблем на карточках видны во время игры
+  goals: false,           // секретные цели
+  goalsTraitor: 'maybe',  // предатель среди целей: off | maybe (в половине игр) | always
+  events: 'off',          // события раунда: off | some (иногда) | every (каждый раунд со 2-го)
+  relations: 'off',       // связи между игроками: off | few | many
+  relationsPublic: false, // связи видят все (иначе — только участники)
   actionCards: true,
   actionsPerPlayer: 2,
   bunkerFeatures: 5,
@@ -180,6 +185,8 @@ export function norm(g) {
   g.effects = g.effects || {};
   g.effects.immune = g.effects.immune || {};
   g.effects.double = g.effects.double || {};
+  g.effects.blocked = g.effects.blocked || {};
+  g.effects.extraReveal = g.effects.extraReveal || {};
   g.candidates = g.candidates || null;
   g.bunker = g.bunker || {};
   g.bunker.features = g.bunker.features || [];
@@ -198,10 +205,12 @@ export const hiddenKeys = (g, pid) => TRAIT_KEYS.filter(k => !(g.revealed[pid] |
 export const currentSpeaker = g => (g.phase === 'speech' ? g.order[g.turn] || null : null);
 
 export function revealsRequired(g) {
-  return g.round === 1 ? +g.settings.firstRoundReveals : +g.settings.revealsPerRound;
+  const base = g.round === 1 ? +g.settings.firstRoundReveals : +g.settings.revealsPerRound;
+  return base + (+(g.effects.extraReveal || {})[g.round] || 0); // событие «все раскрывают больше»
 }
 // Сколько ещё нужно раскрыть игроку в этом раунде
 export function revealsLeft(g, pid) {
+  if ((g.effects.blocked || {})[pid] === g.round) return 0; // карта «Кляп»
   const done = g.revealedRound[pid] || 0;
   return Math.max(0, Math.min(revealsRequired(g) - done, hiddenKeys(g, pid).length));
 }

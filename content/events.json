@@ -1,0 +1,222 @@
+[
+ {
+  "id": "marauders",
+  "icon": "🚪",
+  "title": "Мародёры у двери",
+  "text": "Ночью кто-то пытался вскрыть шлюз. Чужаков отогнали, но часть запасов пропала.",
+  "effect": {
+   "type": "change",
+   "op": "remove",
+   "object": "food",
+   "amount": 3
+  },
+  "causes": [
+   "outside"
+  ],
+  "dark": false
+ },
+ {
+  "id": "pipe_burst",
+  "icon": "💧",
+  "title": "Прорыв трубы",
+  "text": "Лопнула труба, и склад затопило.",
+  "effect": {
+   "type": "change",
+   "op": "remove",
+   "object": "food",
+   "amount": 2
+  },
+  "causes": [
+   "damp"
+  ],
+  "dark": false
+ },
+ {
+  "id": "stash_found",
+  "icon": "📦",
+  "title": "Тайник за стеной",
+  "text": "За фальшстеной нашёлся ящик консервов.",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "food",
+   "amount": 6
+  },
+  "dark": false
+ },
+ {
+  "id": "vent_passage",
+  "icon": "🔦",
+  "title": "Проход в вентиляции",
+  "text": "В вентиляции нашли проход в соседний отсек.",
+  "effect": {
+   "type": "bunker_reveal"
+  },
+  "dark": false
+ },
+ {
+  "id": "collapse",
+  "icon": "🧱",
+  "title": "Обвал коридора",
+  "text": "Один из отсеков завалило — места стало меньше.",
+  "effect": {
+   "type": "change",
+   "op": "remove",
+   "object": "slots",
+   "amount": 1
+  },
+  "dark": false
+ },
+ {
+  "id": "cleared",
+  "icon": "🛠️",
+  "title": "Расчищенный отсек",
+  "text": "Разобрали завал — нашлось ещё одно спальное место.",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "slots",
+   "amount": 1
+  },
+  "dark": false
+ },
+ {
+  "id": "radio",
+  "icon": "📻",
+  "title": "Голос по радио",
+  "text": "По радио передали, что снаружи выжили немногие. Все наперебой делятся тайнами.",
+  "effect": {
+   "type": "extra_reveal",
+   "amount": 1
+  },
+  "dark": false
+ },
+ {
+  "id": "outbreak",
+  "icon": "😷",
+  "title": "Вспышка болезни",
+  "text": "Кто-то в бункере сильно закашлял.",
+  "effect": {
+   "type": "change",
+   "op": "replace",
+   "object": "trait",
+   "key": "health",
+   "target": "random_player",
+   "mode": "random"
+  },
+  "causes": [
+   "infection"
+  ],
+  "dark": false
+ },
+ {
+  "id": "blackout",
+  "icon": "🌩️",
+  "title": "Перебои со светом",
+  "text": "Свет пропал на сутки. В темноте не до голосования.",
+  "effect": {
+   "type": "cancel_vote"
+  },
+  "causes": [
+   "darkness"
+  ],
+  "dark": false
+ },
+ {
+  "id": "mixed_bags",
+  "icon": "🔀",
+  "title": "Перепутанные вещи",
+  "text": "В суматохе после тревоги все схватили чужие сумки.",
+  "effect": {
+   "type": "shuffle_all",
+   "key": "baggage"
+  },
+  "dark": false
+ },
+ {
+  "id": "diary",
+  "icon": "📔",
+  "title": "Чужой дневник",
+  "text": "Кто-то нашёл и прочитал вслух чужой дневник.",
+  "effect": {
+   "type": "reveal_target",
+   "key": "random"
+  },
+  "dark": false
+ },
+ {
+  "id": "rats",
+  "icon": "🐀",
+  "title": "Крысы на складе",
+  "text": "На складе завелись крысы и попортили припасы.",
+  "effect": {
+   "type": "change",
+   "op": "remove",
+   "object": "food",
+   "amount": 2
+  },
+  "causes": [
+   "rodents"
+  ],
+  "dark": false
+ },
+ {
+  "id": "quiet",
+  "icon": "🕯️",
+  "title": "Тихий вечер",
+  "text": "Ничего не произошло — редкая роскошь в конце света.",
+  "effect": {
+   "type": "none"
+  },
+  "dark": false
+ },
+ {
+  "id": "kitten",
+  "icon": "🐱",
+  "title": "Гость из вентиляции",
+  "text": "Из вентиляции вылезла кошка — и сразу выбрала себе хозяина.",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "trait",
+   "key": "baggage",
+   "target": "random_player",
+   "mode": "fixed",
+   "value": "Кошка"
+  },
+  "dark": false
+ },
+ {
+  "id": "hero",
+  "icon": "🎖️",
+  "title": "Герой дня",
+  "text": "Один из жителей вовремя потушил пожар. Голосовать против героя рука не поднимется.",
+  "effect": {
+   "type": "immunity"
+  },
+  "dark": false
+ },
+ {
+  "id": "generator",
+  "icon": "⚡",
+  "title": "Находка на складе",
+  "text": "Разбирая хлам, нашли кое-что полезное для бункера.",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "feature",
+   "mode": "random"
+  },
+  "dark": false
+ },
+ {
+  "id": "return",
+  "icon": "🚶",
+  "title": "Стук в дверь",
+  "text": "Кто-то из изгнанных вернулся и умоляет пустить обратно.",
+  "effect": {
+   "type": "revive"
+  },
+  "dark": false
+ }
+]

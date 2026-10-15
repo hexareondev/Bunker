@@ -1,5 +1,5 @@
 // Финал партии: проблемы, решения, уязвимости, нужды группы, судьбы игроков.
-import { TRAITS, TRAIT_KEYS, aliveIds, norm, foodInfo, monthsText, plural, shuffle, pick } from './logic.js?v=3.6';
+import { TRAITS, TRAIT_KEYS, aliveIds, norm, foodInfo, monthsText, plural, shuffle, pick } from './logic.js?v=3.7';
 
 export const NEEDS = [
   { id: 'food', name: 'Еда', icon: '🍖' },
@@ -149,6 +149,13 @@ export function makeFinal(gIn, cards, names, content, settingsIn = {}) {
   const catItem = lookup('catastrophes', c.title);
   const condItem = g.bunker.condition ? lookup('conditions', g.bunker.condition.text) : null;
   const featItems = (g.bunker.features || []).map(f => ({ text: f, item: lookup('bunkers', f) }));
+  // связи между игроками: срабатывают, если оба оказались в бункере
+  const relItems = (Array.isArray(g.relations) ? g.relations : Object.values(g.relations || {})).filter(Boolean)
+    .map(r => ({ ...r, item: (content?.relations || []).find(x => x && x.id === r.id) || null }));
+  const relTogether = relItems.filter(r => g.alive[r.a] && g.alive[r.b]);
+  // события раунда, которые случились в партии
+  const evItems = (Array.isArray(g.eventLog) ? g.eventLog : Object.values(g.eventLog || {})).filter(Boolean)
+    .map(e => ({ ...e, item: (content?.events || []).find(x => x && x.id === e.id) || null }));
 
   // 1) Проблемы
   const problems = {};
@@ -160,6 +167,8 @@ export function makeFinal(gIn, cards, names, content, settingsIn = {}) {
   (catItem?.causes || []).forEach(id => addProblem(id, c.title));
   (condItem?.causes || []).forEach(id => addProblem(id, g.bunker.condition.text));
   featItems.forEach(f => (f.item?.causes || []).forEach(id => addProblem(id, f.text)));
+  relTogether.forEach(r => (r.item?.causes || []).forEach(id => addProblem(id, `${nm(r.a)} и ${nm(r.b)}: ${lc(r.title)}`)));
+  evItems.forEach(e => (e.item?.causes || []).forEach(id => addProblem(id, `событие «${e.title}»`)));
   surv.forEach(p => items[p].forEach(it => (it.item?.causes || []).forEach(id => addProblem(id, `${nm(p)}: ${lc(it.value)}`))));
   // тесно, если на человека меньше 15 м²; скука, если сидеть больше 4 лет
   if (surv.length > g.slots) addProblem('cramped', `в бункере на ${g.slots} ${plural(g.slots, 'место', 'места', 'мест')} оказалось ${surv.length} ${plural(surv.length, 'человек', 'человека', 'человек')}`);
@@ -192,6 +201,7 @@ export function makeFinal(gIn, cards, names, content, settingsIn = {}) {
   }
   surv.forEach(p => { const sn = sumNeeds(items[p]); for (const n of NEED_IDS) supply[n] += sn[n] || 0; });
   featItems.forEach(f => { const fn = itemNeeds(f.item); for (const n of NEED_IDS) supply[n] += +fn[n] || 0; });
+  relTogether.forEach(r => { const rn = itemNeeds(r.item); for (const n of NEED_IDS) supply[n] += +rn[n] || 0; });
   probList.filter(p => !p.solved).forEach(p => { if (demand[p.need] !== undefined) demand[p.need] += p.power; });
 
   const fi = foodInfo(g);
@@ -319,6 +329,8 @@ export function makeFinal(gIn, cards, names, content, settingsIn = {}) {
   const present = new Set(Object.keys(problems));
   const personal = shuffle(surv).map(p => lineFor(nm(p), keyItem(items[p], present), W(p), present)).filter(Boolean);
   if (personal.length) story.push(personal.join(' '));
+  const relLines = relTogether.map(r => fill(r.item?.together || '', { a: nm(r.a), b: nm(r.b) })).filter(Boolean);
+  if (relLines.length) story.push(relLines.join(' '));
   const probLines = probList.map(p => p.text);
   if (probLines.length) story.push(probLines.join(' '));
   if (fi.infinite) story.push('Голод выжившим не грозил: в бункере был неиссякаемый источник пищи.');
@@ -345,5 +357,6 @@ export function makeFinal(gIn, cards, names, content, settingsIn = {}) {
     problems: probList.map(({ id, name, icon, solved, by, weak, sources, text, need }) => ({ id, name, icon, solved, by, weak, sources, text, need })),
     fates: s.finalFates ? fates : [],
     exiled: exiledNotes,
+    relations: relItems.map(r => ({ icon: r.icon || r.item?.icon || '🤝', title: r.title, a: r.a, b: r.b, text: fill(r.text || r.item?.text || '', { a: nm(r.a), b: nm(r.b) }), together: !!(g.alive[r.a] && g.alive[r.b]), line: g.alive[r.a] && g.alive[r.b] ? fill(r.item?.together || '', { a: nm(r.a), b: nm(r.b) }) : '' })),
   };
 }
