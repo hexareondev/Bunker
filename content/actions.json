@@ -624,5 +624,88 @@
    "type": "peek_goal"
   },
   "dark": false
+ },
+ {
+  "id": "grave_digger",
+  "icon": "⚰️",
+  "title": "Копатель",
+  "text": "Узнайте, кто чем заслужил место: тайно посмотрите здоровье выбранного игрока.",
+  "effect": {
+   "type": "peek",
+   "key": "health"
+  },
+  "dark": true
+ },
+ {
+  "id": "poisoned_soup",
+  "icon": "🥣",
+  "title": "Подозрительный суп",
+  "text": "Случайный игрок получает новое здоровье. Не спрашивайте, что было в супе.",
+  "effect": {
+   "type": "change",
+   "op": "replace",
+   "object": "trait",
+   "key": "health",
+   "target": "random_player",
+   "mode": "random"
+  },
+  "dark": true
+ },
+ {
+  "id": "inheritance",
+  "icon": "📜",
+  "title": "Наследство",
+  "text": "Если вас изгонят, ваш багаж достаётся случайному игроку.",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "trait",
+   "key": "baggage",
+   "target": "random_player",
+   "mode": "random"
+  },
+  "when": "auto",
+  "dark": true
+ },
+ {
+  "id": "ghost",
+  "icon": "👻",
+  "title": "Призрак бункера",
+  "text": "Даже после изгнания вы можете раскрыть характеристику любого игрока. Являетесь по ночам.",
+  "effect": {
+   "type": "reveal_target",
+   "key": "random"
+  },
+  "when": "exiled",
+  "dark": true
+ },
+ {
+  "id": "bribe",
+  "icon": "💵",
+  "title": "Взятка",
+  "text": "Вас не тронут: голоса против вас в этом раунде не считаются.",
+  "effect": {
+   "type": "immunity"
+  },
+  "dark": false
+ },
+ {
+  "id": "new_hobby",
+  "icon": "🎭",
+  "title": "Внезапный талант",
+  "text": "Добавьте себе новое хобби из трёх случайных на выбор.",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "trait",
+   "key": "hobby",
+   "target": "self",
+   "mode": "pool_choice",
+   "pool": {
+    "source": "random",
+    "size": 3
+   }
+  },
+  "dark": false
  }
 ]

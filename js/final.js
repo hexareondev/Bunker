@@ -1,5 +1,5 @@
 // Финал партии: проблемы, решения, уязвимости, нужды группы, судьбы игроков.
-import { TRAITS, TRAIT_KEYS, aliveIds, norm, foodInfo, monthsText, plural, shuffle, pick } from './logic.js?v=3.7';
+import { TRAITS, TRAIT_KEYS, aliveIds, norm, foodInfo, monthsText, plural, shuffle, pick } from './logic.js?v=3.8';
 
 export const NEEDS = [
   { id: 'food', name: 'Еда', icon: '🍖' },
@@ -35,6 +35,25 @@ function makeLookup(content) {
     }
     return maps[file][text] || null;
   };
+}
+
+// Случайный исход карточки: в записи может быть variants: [{ weight, note, needs, solves, weak, causes }]
+// В финале для каждой карточки выбирается один исход (с учётом веса) и его поля заменяют основные.
+export function pickVariant(item) {
+  const vs = (item?.variants || []).filter(Boolean);
+  if (!vs.length) return null;
+  const total = vs.reduce((a, v) => a + Math.max(0, +v.weight || 1), 0);
+  let r = Math.random() * total;
+  for (const v of vs) { r -= Math.max(0, +v.weight || 1); if (r <= 0) return v; }
+  return vs[vs.length - 1];
+}
+export function applyVariant(item, v) {
+  if (!item || !v) return item;
+  const out = { ...item };
+  delete out.variants;
+  for (const k of ['needs', 'solves', 'weak', 'causes']) out[k] = v[k] !== undefined ? v[k] : out[k];
+  if (v.needs !== undefined) delete out.food;
+  return out;
 }
 
 // Нужда из записи (поддержка старого поля food)
@@ -137,14 +156,29 @@ function lineFor(name, it, w, present = new Set()) {
 export function makeFinal(gIn, cards, names, content, settingsIn = {}) {
   const g = norm(JSON.parse(JSON.stringify(gIn)));
   const s = { finalMode: 'full', finalFates: true, finalExiled: true, ...g.settings, ...settingsIn };
-  const lookup = makeLookup(content);
+  const baseLookup = makeLookup(content);
+  // каждая карточка игрока (и бункера) получает свой случайный исход, если он у неё задан
+  const twists = [];
+  const rolled = new Map();
+  const rollLookup = (who, label) => (file, text) => {
+    const it = baseLookup(file, text);
+    if (!it?.variants?.length) return it;
+    const key = `${who || ''}|${file}|${text}`;
+    if (!rolled.has(key)) {
+      const v = pickVariant(it);
+      rolled.set(key, applyVariant(it, v));
+      if (v?.note) twists.push({ pid: who, file, text, note: v.note, label: label || text });
+    }
+    return rolled.get(key);
+  };
+  const lookup = rollLookup(null);
   const tags = Object.fromEntries((content?.tags || []).filter(t => t && t.id).map(t => [t.id, t]));
   const nm = p => names[p] || 'игрок';
   const isF = p => /^Женщина/.test(String(cards[p]?.raw?.biology || ''));
   const W = p => (m, f) => (isF(p) ? f : m);
   const surv = aliveIds(g);
   const exiled = g.players.filter(p => !g.alive[p]);
-  const items = Object.fromEntries(g.players.map(p => [p, playerItems(cards[p], lookup)]));
+  const items = Object.fromEntries(g.players.map(p => [p, playerItems(cards[p], rollLookup(p))]));
   const c = g.catastrophe || {};
   const catItem = lookup('catastrophes', c.title);
   const condItem = g.bunker.condition ? lookup('conditions', g.bunker.condition.text) : null;
@@ -329,6 +363,9 @@ export function makeFinal(gIn, cards, names, content, settingsIn = {}) {
   const present = new Set(Object.keys(problems));
   const personal = shuffle(surv).map(p => lineFor(nm(p), keyItem(items[p], present), W(p), present)).filter(Boolean);
   if (personal.length) story.push(personal.join(' '));
+  // повороты: чем на самом деле оказалась карточка со случайным исходом (только для выживших и бункера)
+  const twistLines = twists.filter(t => !t.pid || g.alive[t.pid]).map(t => genderize(fill(t.note, { name: t.pid ? nm(t.pid) : '' }), t.pid ? isF(t.pid) : false));
+  if (twistLines.length) story.push(twistLines.join(' '));
   const relLines = relTogether.map(r => fill(r.item?.together || '', { a: nm(r.a), b: nm(r.b) })).filter(Boolean);
   if (relLines.length) story.push(relLines.join(' '));
   const probLines = probList.map(p => p.text);
@@ -357,6 +394,7 @@ export function makeFinal(gIn, cards, names, content, settingsIn = {}) {
     problems: probList.map(({ id, name, icon, solved, by, weak, sources, text, need }) => ({ id, name, icon, solved, by, weak, sources, text, need })),
     fates: s.finalFates ? fates : [],
     exiled: exiledNotes,
+    twists: twists.filter(t => !t.pid || g.alive[t.pid]).map(t => ({ pid: t.pid || null, text: genderize(fill(t.note, { name: t.pid ? nm(t.pid) : '' }), t.pid ? isF(t.pid) : false) })),
     relations: relItems.map(r => ({ icon: r.icon || r.item?.icon || '🤝', title: r.title, a: r.a, b: r.b, text: fill(r.text || r.item?.text || '', { a: nm(r.a), b: nm(r.b) }), together: !!(g.alive[r.a] && g.alive[r.b]), line: g.alive[r.a] && g.alive[r.b] ? fill(r.item?.together || '', { a: nm(r.a), b: nm(r.b) }) : '' })),
   };
 }

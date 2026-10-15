@@ -344,5 +344,108 @@
   "solves": [
    "roaches"
   ]
+ },
+ {
+  "text": "Спиритические сеансы",
+  "dark": true,
+  "variants": [
+   {
+    "note": "{name}: спиритические сеансы развлекали бункер долгими вечерами.",
+    "needs": {
+     "morale": 1
+    }
+   },
+   {
+    "note": "{name}: на сеансе «духи» сказали такое, что бункер не спал неделю.",
+    "needs": {
+     "morale": -1
+    },
+    "causes": [
+     "despair"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "Коллекционирует зубы",
+  "dark": true,
+  "needs": {
+   "morale": -1
+  },
+  "desc": "Свои и чужие."
+ },
+ {
+  "text": "Вскрытие замков",
+  "dark": false,
+  "needs": {
+   "repair": 1
+  }
+ },
+ {
+  "text": "Стрельба из лука",
+  "dark": false,
+  "needs": {
+   "defense": 1,
+   "food": 1
+  }
+ },
+ {
+  "text": "Стендап-комедия",
+  "dark": false,
+  "needs": {
+   "morale": 1
+  },
+  "solves": [
+   "despair"
+  ]
+ },
+ {
+  "text": "Игра на волынке",
+  "dark": false,
+  "needs": {
+   "morale": -1
+  },
+  "causes": [
+   "conflict"
+  ]
+ },
+ {
+  "text": "Выращивание грибов",
+  "dark": false,
+  "needs": {
+   "food": 1
+  },
+  "variants": [
+   {
+    "note": "{name}: грибная ферма кормила бункер целыми месяцами.",
+    "needs": {
+     "food": 2
+    }
+   },
+   {
+    "note": "{name}: грибы оказались «теми самыми». Неделю все видели музыку.",
+    "needs": {
+     "food": -1,
+     "morale": 1
+    },
+    "causes": [
+     "poison"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "Ролевые игры живого действия",
+  "dark": false,
+  "needs": {
+   "morale": 1
+  }
+ },
+ {
+  "text": "Подглядывание за соседями",
+  "dark": true,
+  "causes": [
+   "conflict"
+  ]
  }
 ]

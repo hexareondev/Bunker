@@ -5,14 +5,14 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=3.7';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.7';
-import * as E from './effects.js?v=3.7';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.7';
-import * as S from './sfx.js?v=3.7';
-import * as T from './tts.js?v=3.7';
-import { qrSvg } from './qr.js?v=3.7';
-import * as X from './extras.js?v=3.7';
+import * as L from './logic.js?v=3.8';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.8';
+import * as E from './effects.js?v=3.8';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.8';
+import * as S from './sfx.js?v=3.8';
+import * as T from './tts.js?v=3.8';
+import { qrSvg } from './qr.js?v=3.8';
+import * as X from './extras.js?v=3.8';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -106,8 +106,10 @@ const featureFood = f => +itemNeeds(itemIn('bunkers', f)).food || 0;
 const tagInfo = id => (content?.tags || []).find(t => t && t.id === id) || { id, name: id, icon: '⚠️' };
 function markerChips(items, hotFood = false) {
   const needs = {}, solves = new Set(), weak = new Set(), causes = new Set();
+  let dice = false;
   for (const it of items) {
     if (!it) continue;
+    if ((it.variants || []).length) dice = true;
     for (const [k, v] of Object.entries(itemNeeds(it))) needs[k] = (needs[k] || 0) + (+v || 0);
     (it.solves || []).forEach(x => solves.add(x));
     (it.weak || []).forEach(x => weak.add(x));
@@ -122,6 +124,7 @@ function markerChips(items, hotFood = false) {
   solves.forEach(id => { const t = tagInfo(id); out.push(`<span class="mk solve" title="Решает: ${esc(t.name)}">✔${t.icon}</span>`); });
   weak.forEach(id => { const t = tagInfo(id); out.push(`<span class="mk weak" title="Уязвим к: ${esc(t.name)}">⚠${t.icon}</span>`); });
   causes.forEach(id => { const t = tagInfo(id); out.push(`<span class="mk cause" title="Вызывает: ${esc(t.name)}">${t.icon}!</span>`); });
+  if (dice) out.push('<span class="mk dice" title="Исход случайный — выяснится в финале">🎲</span>');
   return out.length ? `<span class="mks">${out.join('')}</span>` : '';
 }
 const showMarkers = g => !!g.settings?.showMarkers || g.phase === 'end';
@@ -1925,6 +1928,8 @@ function renderEnd() {
   const fates = arr(fin?.fates);
   const fatesHtml = fates.length ? `<h2>Судьбы</h2><ul class="fates">${fates.map(f => `<li class="f-${f.status}"><span class="f-ico">${{ alive: '🟢', hurt: '🟠', dead: '💀' }[f.status] || '•'}</span><span>${esc(f.text)}</span></li>`).join('')}</ul>` : '';
   const exiled = arr(fin?.exiled);
+  const twistArr = arr(fin?.twists);
+  const twistsHtml = twistArr.length ? `<h2>🎲 Повороты</h2><ul class="fates">${twistArr.map(t => `<li><span class="f-ico">🎲</span><span>${esc(t.text)}</span></li>`).join('')}</ul>` : '';
   const goalsArr = arr(fin?.goals);
   const goalsHtml = goalsArr.length ? `<h2>Секретные цели</h2><ul class="fates goals">${goalsArr.map(x => `<li class="${x.ok ? 'g-ok' : 'g-fail'}"><span class="f-ico">${x.ok ? '✅' : '❌'}</span><span><b>${esc(x.name)}</b> ${x.traitor ? '<span class="tag bad">предатель</span>' : ''} — ${esc(x.icon || '')} ${esc(x.title)}: ${esc(x.text)}</span></li>`).join('')}</ul>` : '';
   const relArr = arr(fin?.relations);
@@ -1939,7 +1944,7 @@ function renderEnd() {
     <h1 class="logo small">Финал</h1>
     ${verdict}
     <div class="card story">${story.length ? `<div class="tl">История ${sayBtn('final')}</div>` : ''}${story.length ? story.map(x => `<p>${esc(x)}</p>`).join('') : '<p class="muted">Подводим итоги…</p>'}</div>
-    ${goalsHtml}${needsHtml}${probsHtml}${fatesHtml}${relHtml}${exiledHtml}
+    ${goalsHtml}${twistsHtml}${needsHtml}${probsHtml}${fatesHtml}${relHtml}${exiledHtml}
     <h2>Выжившие · ${surv.length}</h2><div class="players">${block(surv)}</div>
     <h2>Остались снаружи · ${out.length}</h2><div class="players">${block(out)}</div>
     <div class="card"><div class="tl">Бункер</div><ul class="feats">${g.bunker.features.map(f => `<li>${featureItem(f)}</li>`).join('')}</ul></div>

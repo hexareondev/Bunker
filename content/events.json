@@ -218,5 +218,77 @@
    "type": "revive"
   },
   "dark": false
+ },
+ {
+  "id": "funeral",
+  "icon": "⚰️",
+  "title": "Похороны таракана",
+  "text": "Самый старый таракан бункера умер. Его хоронили всем коллективом — это сблизило.",
+  "effect": {
+   "type": "none"
+  },
+  "dark": true
+ },
+ {
+  "id": "tasting",
+  "icon": "🥫",
+  "title": "Консервы без этикеток",
+  "text": "Нашли ящик консервов без этикеток. Открывали по одной — с надеждой и страхом.",
+  "effect": {
+   "type": "change",
+   "op": "add",
+   "object": "food",
+   "amount": 4
+  },
+  "dark": false
+ },
+ {
+  "id": "seance",
+  "icon": "🕯️",
+  "title": "Спиритический сеанс",
+  "text": "Кто-то устроил сеанс. «Дух» выдал чужую тайну.",
+  "effect": {
+   "type": "reveal_target",
+   "key": "fact"
+  },
+  "dark": true
+ },
+ {
+  "id": "swap_night",
+  "icon": "🌙",
+  "title": "Ночная путаница",
+  "text": "После ночной тревоги все проснулись не со своими фобиями. Психотерапия бессильна.",
+  "effect": {
+   "type": "shuffle_all",
+   "key": "phobia"
+  },
+  "dark": true
+ },
+ {
+  "id": "leak",
+  "icon": "☢️",
+  "title": "Утечка из бочки",
+  "text": "Из старой бочки что-то потекло. Пахнет миндалём.",
+  "effect": {
+   "type": "change",
+   "op": "remove",
+   "object": "food",
+   "amount": 2
+  },
+  "causes": [
+   "poison"
+  ],
+  "dark": true
+ },
+ {
+  "id": "confession",
+  "icon": "🙏",
+  "title": "Вечер признаний",
+  "text": "Все устали врать. Каждый в этом раунде раскрывает больше.",
+  "effect": {
+   "type": "extra_reveal",
+   "amount": 1
+  },
+  "dark": false
  }
 ]

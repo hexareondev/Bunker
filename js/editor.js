@@ -1,5 +1,5 @@
-import { makeZip, downloadBlob, readZip } from './zip.js?v=3.7';
-import * as E from './effects.js?v=3.7';
+import { makeZip, downloadBlob, readZip } from './zip.js?v=3.8';
+import * as E from './effects.js?v=3.8';
 
 // ---------------- Описание разделов ----------------
 const NEEDS = [['food', '🍖', 'Еда'], ['medicine', '🩺', 'Медицина'], ['repair', '🔧', 'Ремонт'], ['defense', '🛡️', 'Защита'], ['morale', '🙂', 'Мораль'], ['reproduction', '👶', 'Род']];
@@ -10,6 +10,7 @@ const FINAL_FIELDS = [
   { k: 'solves', l: '✔ Решает проблемы', t: 'probs' },
   { k: 'weak', l: '⚠ Уязвим к проблемам', t: 'probs' },
   { k: 'causes', l: '❗ Вызывает проблемы', t: 'probs' },
+  { k: 'variants', l: '🎲 Случайные исходы — в финале выпадет один из них и заменит то, что выше', t: 'variants' },
 ];
 const ONLY_CARD = { k: 'onlyByCard', l: '🃏 Не выпадает при раздаче — получить можно только картой действия', t: 'check', re: true };
 const TRAIT_FIELDS = [
@@ -196,6 +197,17 @@ function clean(item) {
   if ('months' in x && (x.months === '' || x.months === undefined)) x.months = null;
   if ('icon' in x && !x.icon) delete x.icon;
   if (x.effect) x.effect = cleanEffect(x.effect);
+  if (Array.isArray(x.variants)) {
+    x.variants = x.variants.filter(Boolean).map(v => {
+      const y = { ...v };
+      if (y.needs && typeof y.needs === 'object') { for (const k of Object.keys(y.needs)) if (!Number(y.needs[k])) delete y.needs[k]; else y.needs[k] = Number(y.needs[k]); if (!Object.keys(y.needs).length) delete y.needs; }
+      for (const k of ['solves', 'weak', 'causes']) if (Array.isArray(y[k]) && !y[k].length) delete y[k];
+      if (typeof y.note === 'string') { y.note = y.note.trim(); if (!y.note) delete y.note; }
+      if (!(+y.weight > 1)) delete y.weight;
+      return y;
+    });
+    if (!x.variants.length) delete x.variants;
+  }
   for (const k of ['text', 'title', 'desc', 'duration', 'id']) if (typeof x[k] === 'string') x[k] = x[k].trim();
   return x;
 }
@@ -357,6 +369,7 @@ function badges(sec, x) {
   if ((x.causes || []).length) b.push(`<span class="ed-b dark">❗${x.causes.map(ti).join('')}</span>`);
   if (sec.f === 'tags' && x.deadly) b.push('<span class="ed-b dark">💀 смертельна</span>');
   if (x.onlyByCard) b.push('<span class="ed-b">🃏 только от карт</span>');
+  if ((x.variants || []).length) b.push(`<span class="ed-b">🎲 ${x.variants.length} ${x.variants.length < 5 ? 'исхода' : 'исходов'}</span>`);
   if (x.desc) b.push('<span class="ed-b">описание</span>');
   return b.join('');
 }
@@ -380,7 +393,7 @@ function fieldHtml(f, x, i) {
   const opts = typeof f.opts === 'function' ? f.opts(ef) : f.opts;
   const cur = f.k.startsWith('effect.') ? getPath({ effect: ef }, f.k) : v;
   if (f.t === 'needs') {
-    const nd = x.needs || {};
+    const nd = getPath(x, f.k) || {};
     const vals = f.imp ? [0, 1, 2] : [-2, -1, 0, 1, 2];
     const legacyFood = Number(x.food) && nd.food === undefined ? Number(x.food) : null;
     return `<div class="field"><span>${f.l}</span><div class="ed-needs">${NEEDS.map(([id, ic, nm]) => {
@@ -389,11 +402,28 @@ function fieldHtml(f, x, i) {
       const shown = v => (f.imp ? -v : v);
       const cls = shown(cv) > 0 ? 'pos' : shown(cv) < 0 ? 'neg' : '';
       return `<label class="ed-need ${cls}"><span>${ic} ${nm}</span>
-        <select data-i="${i}" data-k="needs.${id}">${vals.map(v => { const d = shown(v); return `<option value="${v}" ${v === cv ? 'selected' : ''}>${d > 0 ? '+' + d : d === 0 ? '0' : '−' + Math.abs(d)}</option>`; }).join('')}</select></label>`;
+        <select data-i="${i}" data-k="${f.k}.${id}">${vals.map(v => { const d = shown(v); return `<option value="${v}" ${v === cv ? 'selected' : ''}>${d > 0 ? '+' + d : d === 0 ? '0' : '−' + Math.abs(d)}</option>`; }).join('')}</select></label>`;
     }).join('')}</div></div>`;
   }
+  if (f.t === 'variants') {
+    const vs = Array.isArray(v) ? v : [];
+    const W = [[1, 'обычный'], [2, 'вдвое чаще'], [3, 'втрое чаще'], [4, 'вчетверо чаще']];
+    return `<div class="field ed-variants"><span>${f.l}</span>
+      ${vs.length ? '' : '<div class="ed-sub">Нет — карточка всегда работает одинаково. Добавьте 2+ исхода, чтобы в финале она срабатывала по-разному.</div>'}
+      ${vs.map((vr, j) => `<div class="ed-variant">
+        <div class="ed-variant-head"><b>🎲 Исход ${j + 1}</b>
+          <label class="ed-variant-w">шанс <select data-i="${i}" data-k="${f.k}.${j}.weight">${W.map(([w, l]) => `<option value="${w}" ${(+vr.weight || 1) === w ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <button type="button" class="btn small ghost danger-text" data-a="varDel" data-i="${i}" data-j="${j}">Убрать</button></div>
+        ${fieldHtml({ k: `${f.k}.${j}.note`, l: 'Что произошло (строка в финале; {name} — имя игрока)', t: 'area', ph: 'Оказалось, {name} не врал(а)…' }, x, i)}
+        ${fieldHtml({ k: `${f.k}.${j}.needs`, l: 'Нужды в этом исходе (−2…+2)', t: 'needs' }, x, i)}
+        ${fieldHtml({ k: `${f.k}.${j}.solves`, l: '✔ Решает', t: 'probs' }, x, i)}
+        ${fieldHtml({ k: `${f.k}.${j}.weak`, l: '⚠ Уязвим', t: 'probs' }, x, i)}
+        ${fieldHtml({ k: `${f.k}.${j}.causes`, l: '❗ Вызывает', t: 'probs' }, x, i)}
+      </div>`).join('')}
+      <button type="button" class="btn small" data-a="varAdd" data-i="${i}">+ Добавить исход</button></div>`;
+  }
   if (f.t === 'probs') {
-    const sel = new Set(Array.isArray(x[f.k]) ? x[f.k] : []);
+    const sel = new Set(Array.isArray(getPath(x, f.k)) ? getPath(x, f.k) : []);
     const tags = (data.tags || []).filter(t => t && t.id);
     if (!tags.length) return `<div class="field"><span>${f.l}</span><div class="ed-sub">Сначала создайте проблемы в разделе «Проблемы».</div></div>`;
     return `<div class="field"><span>${f.l}</span><div class="ed-probs">${tags.map(t => `
@@ -641,6 +671,13 @@ $ed.addEventListener('click', async e => {
     opened = new Set();
     render(); saveDraft();
     toast('Запись удалена');
+  } else if (a === 'varAdd' || a === 'varDel') {
+    const item = data[cur][i];
+    if (a === 'varAdd') { item.variants = Array.isArray(item.variants) ? item.variants : []; item.variants.push({ note: '' }); }
+    else { item.variants.splice(+b.dataset.j, 1); if (!item.variants.length) delete item.variants; }
+    const det = b.closest('.ed-item');
+    if (det) rerenderItem(det, i); else render();
+    saveDraft();
   } else if (a === 'regenId') {
     const item = data[cur][i];
     item.id = uniqueId(slug(item.title || item.name) || (cur === 'tags' ? 'problem' : 'card'), i);
@@ -694,11 +731,11 @@ function onField(el, isChange = false) {
   if (el.type === 'checkbox') v = el.checked;
   else if (f && f.t === 'num') v = el.value === '' ? '' : Number(el.value);
   else if (f && f.num) v = Number(el.value);
-  else if (k.startsWith('needs.')) v = Number(el.value);
+  else if (/(^|\.)needs\./.test(k) || /\.weight$/.test(k)) v = Number(el.value);
   else v = el.value;
   setPath(item, k, v);
-  if (k.startsWith('needs.')) {
-    if ('food' in item) delete item.food; // старое поле еды переезжает в нужды
+  if (/(^|\.)needs\./.test(k)) {
+    if (k.startsWith('needs.') && 'food' in item) delete item.food; // старое поле еды переезжает в нужды
     const lab = el.closest('.ed-need');
     const d = cur === 'catastrophes' || cur === 'conditions' ? -v : v; // у катастроф и состояний показываем со знаком минус
     if (lab) { lab.classList.toggle('pos', d > 0); lab.classList.toggle('neg', d < 0); }
@@ -766,9 +803,10 @@ $ed.addEventListener('change', async e => {
     const i = +e.target.dataset.i;
     const k = e.target.dataset.prob;
     const item = data[cur][i];
-    const arr = new Set(Array.isArray(item[k]) ? item[k] : []);
+    const prev = getPath(item, k);
+    const arr = new Set(Array.isArray(prev) ? prev : []);
     if (e.target.checked) arr.add(e.target.value); else arr.delete(e.target.value);
-    item[k] = [...arr];
+    setPath(item, k, [...arr]);
     e.target.closest('.ed-prob')?.classList.toggle('on', e.target.checked);
     const det = e.target.closest('.ed-item');
     if (det) { det.querySelector('.ed-badges').innerHTML = badges(SEC[cur], item); det.classList.toggle('mod', changedItem(cur, i)); }

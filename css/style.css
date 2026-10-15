@@ -599,3 +599,4 @@ html.board-mode .wrap.end { max-width: 1100px; }
 .secret-val { font-size: 1.15rem; font-weight: 700; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--act) 10%, var(--bg)); border: 1px dashed var(--act); margin-bottom: 8px; }
 .goals li.g-ok { border-color: color-mix(in srgb, var(--ok) 50%, var(--line)); }
 .goals li.g-fail { opacity: .85; }
+.mk.dice { border-color: color-mix(in srgb, var(--act) 50%, var(--line)); }
