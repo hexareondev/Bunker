@@ -116,3 +116,5 @@
 .ed-variant-head b { flex: 1 1 auto; }
 .ed-variant-w { display: flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--muted); }
 .ed-variant-w select { width: auto; padding: 6px 8px; }
+.ed-ai { margin: 18px 0 8px; padding: 12px 14px; border: 1px dashed color-mix(in srgb, var(--act) 55%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--act) 5%, var(--surface)); display: flex; flex-direction: column; gap: 10px; }
+.ed-ai .ed-row { display: flex; flex-wrap: wrap; gap: 8px; }

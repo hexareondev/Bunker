@@ -1,5 +1,6 @@
-import { makeZip, downloadBlob, readZip } from './zip.js?v=3.8';
-import * as E from './effects.js?v=3.8';
+import { makeZip, downloadBlob, readZip } from './zip.js?v=3.9';
+import * as E from './effects.js?v=3.9';
+import { buildAgentGuide } from './agentguide.js?v=3.9';
 
 // ---------------- Описание разделов ----------------
 const NEEDS = [['food', '🍖', 'Еда'], ['medicine', '🩺', 'Медицина'], ['repair', '🔧', 'Ремонт'], ['defense', '🛡️', 'Защита'], ['morale', '🙂', 'Мораль'], ['reproduction', '👶', 'Род']];
@@ -325,6 +326,13 @@ function render() {
       <label class="btn small ghost ed-file">Загрузить .json в раздел<input type="file" accept=".json,application/json" id="ed-import" hidden></label>
       <button class="btn small ghost" data-a="resetSec">Сбросить раздел</button>
       <button class="btn small ghost" data-a="resetAll">Сбросить всё</button>
+    </div>
+    <div class="ed-ai">
+      <div><b>🤖 Пак с помощью ИИ</b><div class="ed-sub">Инструкция для ИИ-агента (ChatGPT, Claude и др.): форматы файлов, правила, проблемы для финала и список того, что уже есть в игре. Отдайте её агенту вместе со своей идеей — он соберёт архив, который можно загрузить в лобби или открыть здесь для проверки.</div></div>
+      <div class="ed-row">
+        <button class="btn small" data-a="guide">⬇ Инструкция (.md)</button>
+        <button class="btn small ghost" data-a="guideZip" title="Инструкция и все текущие карточки — агенту будет на что ориентироваться">⬇ Инструкция + все карточки (.zip)</button>
+      </div>
     </div>
     <div class="ed-actions">
       <button class="btn primary" data-a="zip" id="ed-zip">⬇ Скачать архив${ch.length ? ` (изменено файлов: ${ch.length})` : ''}</button>
@@ -671,6 +679,14 @@ $ed.addEventListener('click', async e => {
     opened = new Set();
     render(); saveDraft();
     toast('Запись удалена');
+  } else if (a === 'guide' || a === 'guideZip') {
+    const md = buildAgentGuide(data, { siteUrl: location.origin + location.pathname.replace(/editor\.html$/, '') });
+    if (a === 'guide') downloadBlob(new Blob([md], { type: 'text/markdown;charset=utf-8' }), 'BunkIIr-instrukciya-dlya-II.md');
+    else {
+      const files = [{ name: 'AGENT_GUIDE.md', text: md }, ...SECTIONS.map(s => ({ name: `examples/${s.f}.example.json`, text: ser(data[s.f] || []) }))];
+      downloadBlob(makeZip(files), 'BunkIIr-instrukciya-i-kartochki.zip');
+    }
+    toast('Инструкция скачана. Отдайте её ИИ-агенту вместе со своей идеей пака.');
   } else if (a === 'varAdd' || a === 'varDel') {
     const item = data[cur][i];
     if (a === 'varAdd') { item.variants = Array.isArray(item.variants) ? item.variants : []; item.variants.push({ note: '' }); }
