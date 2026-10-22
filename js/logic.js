@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS = {
   voteStartRound: 2,
   voteSecret: false,
   tieRule: 'revote',      // revote | random | none
+  skipCatchUp: false,     // голосование сорвано или никого не изгнали — в следующем изгоняют на одного больше
   exiledRevealsAll: true,
   finalMode: 'full',      // 'full' — история + итог, 'story' — только история
   finalFates: true,       // судьба каждого выжившего
@@ -329,17 +330,65 @@ export function tally(g) {
   return { counts, leaders };
 }
 
+// Сколько человек изгоняют в этом голосовании (с учётом пропущенных, если включено)
+export function exileCount(g) {
+  const debt = g.settings.skipCatchUp ? (+g.exileDebt || 0) : 0;
+  return Math.max(1, Math.min(1 + debt, aliveIds(g).length - g.slots));
+}
+// Голосование прошло без изгнания: при включённой настройке «долг» переходит в следующее
+function skipVote(g, note) {
+  if (g.settings.skipCatchUp) {
+    g.exileDebt = (+g.exileDebt || 0) + 1;
+    note += ' — в следующем голосовании изгонят на одного больше';
+  }
+  return note;
+}
+function exileOne(g, p) {
+  g.alive[p] = false;
+  if (g.settings.exiledRevealsAll) {
+    g.revealed[p] = g.revealed[p] || {};
+    for (const k of TRAIT_KEYS) g.revealed[p][k] = true;
+  }
+}
+
 function resolveVote(g, now) {
   const s = g.settings;
   if (g.effects.cancelVote === g.round) {
-    g.lastResult = { exiled: null, counts: {}, note: 'Голосование сорвано картой «Саботаж»' };
-    g.event = g.lastResult.note;
+    const note = skipVote(g, 'Голосование сорвано');
+    g.lastResult = { exiled: null, counts: {}, note };
+    g.event = note;
     setPhase(g, 'result', now);
     return;
   }
   const { counts, leaders } = tally(g);
+  const need = exileCount(g);
+  if (need > 1) {
+    // изгоняют нескольких: по убыванию голосов, ничья на границе — жребий
+    const groups = {};
+    for (const [p, c] of Object.entries(counts)) (groups[c] = groups[c] || []).push(p);
+    const chosen = [];
+    for (const c of Object.keys(groups).map(Number).sort((a, b) => b - a)) {
+      const left = need - chosen.length;
+      if (left <= 0) break;
+      chosen.push(...(groups[c].length <= left ? groups[c] : shuffle(groups[c]).slice(0, left)));
+    }
+    if (!chosen.length) {
+      const note = skipVote(g, 'Никто не проголосовал — изгнания нет');
+      g.lastResult = { exiled: null, counts, note };
+      g.event = note;
+      setPhase(g, 'result', now);
+      return;
+    }
+    chosen.forEach(p => exileOne(g, p));
+    g.exileDebt = Math.max(0, (+g.exileDebt || 0) - (chosen.length - 1));
+    const note = chosen.length > 1 ? 'За пропущенное голосование изгоняют больше' : 'Голосов хватило только на одного';
+    g.lastResult = { exiled: chosen[0], exiledAll: chosen, counts, note };
+    g.event = `Изгнаны: ${chosen.map(p => `@${p}@`).join(', ')} (${note})`;
+    setPhase(g, 'result', now);
+    return;
+  }
   let exiled = null, note = '';
-  if (leaders.length === 0) note = 'Никто не проголосовал — изгнания нет';
+  if (leaders.length === 0) note = skipVote(g, 'Никто не проголосовал — изгнания нет');
   else if (leaders.length === 1) exiled = leaders[0];
   else if (s.tieRule === 'revote' && !g.revoteDone) {
     g.revoteDone = true;
@@ -349,17 +398,11 @@ function resolveVote(g, now) {
     g.event = 'Ничья — переголосование';
     setPhase(g, 'vote', now);
     return;
-  } else if (s.tieRule === 'none') note = 'Ничья — никто не изгнан';
+  } else if (s.tieRule === 'none') note = skipVote(g, 'Ничья — никто не изгнан');
   else { exiled = pick(leaders); note = 'Ничья — изгнанный выбран жребием'; }
 
-  if (exiled) {
-    g.alive[exiled] = false;
-    if (s.exiledRevealsAll) {
-      g.revealed[exiled] = g.revealed[exiled] || {};
-      for (const k of TRAIT_KEYS) g.revealed[exiled][k] = true;
-    }
-  }
-  g.lastResult = { exiled, counts, note };
+  if (exiled) exileOne(g, exiled);
+  g.lastResult = { exiled, exiledAll: exiled ? [exiled] : [], counts, note };
   g.event = exiled ? `Изгнан(а): @${exiled}@${note ? ' (' + note + ')' : ''}` : note;
   setPhase(g, 'result', now);
 }

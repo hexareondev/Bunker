@@ -1,5 +1,5 @@
 // Разнообразие: секретные цели, связи между игроками, события раунда, пресеты правил.
-import { pool, shuffle, pick, aliveIds } from './logic.js?v=3.9';
+import { pool, shuffle, pick, aliveIds } from './logic.js?v=4.0';
 
 const fill = (tpl, map) => String(tpl || '').replace(/\{(\w+)\}/g, (_, k) => map[k] ?? '');
 const NEED_NAMES = { food: 'Еда', medicine: 'Медицина', repair: 'Ремонт и техника', defense: 'Защита', morale: 'Мораль', reproduction: 'Продолжение рода' };
@@ -13,7 +13,7 @@ export const PRESETS = {
       speechTime: 40, discussionTime: 60, voteTime: 30, resultTime: 6,
       firstRoundReveals: 2, revealsPerRound: 2, voteStartRound: 1, forceProfession: true,
       actionCards: true, actionsPerPlayer: 1, bunkerFeatures: 3,
-      voteSecret: false, tieRule: 'random', exiledRevealsAll: true,
+      voteSecret: false, tieRule: 'random', exiledRevealsAll: true, skipCatchUp: false,
       goals: false, events: 'off', relations: 'off',
     },
   },
@@ -23,7 +23,7 @@ export const PRESETS = {
       speechTime: 60, discussionTime: 120, voteTime: 45, resultTime: 10,
       firstRoundReveals: 1, revealsPerRound: 1, voteStartRound: 2, forceProfession: true,
       actionCards: true, actionsPerPlayer: 2, bunkerFeatures: 5,
-      voteSecret: false, tieRule: 'revote', exiledRevealsAll: true,
+      voteSecret: false, tieRule: 'revote', exiledRevealsAll: true, skipCatchUp: false,
       goals: false, events: 'some', relations: 'few', relationsPublic: false,
     },
   },
@@ -33,7 +33,7 @@ export const PRESETS = {
       speechTime: 50, discussionTime: 90, voteTime: 30, resultTime: 8,
       firstRoundReveals: 1, revealsPerRound: 1, voteStartRound: 2, forceProfession: true,
       actionCards: true, actionsPerPlayer: 3, bunkerFeatures: 6,
-      voteSecret: true, tieRule: 'random', exiledRevealsAll: false,
+      voteSecret: true, tieRule: 'random', exiledRevealsAll: false, skipCatchUp: true,
       goals: true, goalsTraitor: 'maybe', events: 'every', relations: 'many', relationsPublic: false,
     },
   },

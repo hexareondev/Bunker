@@ -5,14 +5,14 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=3.9';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=3.9';
-import * as E from './effects.js?v=3.9';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=3.9';
-import * as S from './sfx.js?v=3.9';
-import * as T from './tts.js?v=3.9';
-import { qrSvg } from './qr.js?v=3.9';
-import * as X from './extras.js?v=3.9';
+import * as L from './logic.js?v=4.0';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=4.0';
+import * as E from './effects.js?v=4.0';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=4.0';
+import * as S from './sfx.js?v=4.0';
+import * as T from './tts.js?v=4.0';
+import { qrSvg } from './qr.js?v=4.0';
+import * as X from './extras.js?v=4.0';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -611,7 +611,9 @@ async function doAdvance(expectedVersion) {
     if (res.committed) {
       const g = res.snapshot.val();
       if (g?.event) {
-        const ex = g.phase === 'result' && g.lastResult?.exiled;
+        const exAll = g.phase === 'result' && before?.phase === 'vote' ? (Array.isArray(g.lastResult?.exiledAll) ? g.lastResult.exiledAll : Object.values(g.lastResult?.exiledAll || {})).filter(Boolean) : [];
+        if (!exAll.length && g.phase === 'result' && g.lastResult?.exiled) exAll.push(g.lastResult.exiled);
+        const ex = exAll[0];
         const newRound = g.phase === 'speech' && g.turn === 0 && g.round > 1 && g.event === `Раунд ${g.round}`;
         const feat = newRound ? (g.bunker?.features || [])[(g.bunker?.shown || 0) - 1] : null;
         // авто-раскрытие по таймеру: карточка для каждой раскрытой характеристики
@@ -626,7 +628,7 @@ async function doAdvance(expectedVersion) {
             }
           }
         }
-        if (ex) { addLog(g.event, { type: 'exile', pid: ex, who: nameOf(ex) }); triggerExileCards(ex); }
+        if (ex) exAll.forEach((p, j) => { addLog(j ? `Изгнан(а): @${p}@` : g.event, { type: 'exile', pid: p, who: nameOf(p) }); triggerExileCards(p); });
         else if (feat && (g.bunker.shown || 0) > (before?.bunker?.shown || 0)) addLog(`Раунд ${g.round}. В бункере открыто: ${feat}`, { type: 'bunker', round: g.round, feature: feat });
         else if (!/время вышло/.test(g.event)) addLog(g.event, { type: 'game' });
         if (newRound) triggerRoundEvent(g.round);
@@ -1196,6 +1198,7 @@ const FIELDS = [
   { k: 'revealsPerRound', t: 'num', l: 'Раскрытий в следующих раундах', min: 0, max: 8 },
   { k: 'voteStartRound', t: 'num', l: 'Голосование начиная с раунда', min: 1, max: 10 },
   { k: 'voteSecret', t: 'check', l: 'Тайное голосование' },
+  { k: 'skipCatchUp', t: 'check', l: 'Если голосование сорвано или никого не изгнали — в следующем изгоняют на одного больше' },
   { k: 'tieRule', t: 'select', l: 'При ничьей', opts: { revote: 'Переголосование', random: 'Жребий', none: 'Никто не изгнан' } },
   { k: 'exiledRevealsAll', t: 'check', l: 'Изгнанный раскрывает все карты' },
   { k: 'actionCards', t: 'check', l: 'Карты действий' },
@@ -1225,8 +1228,8 @@ const SECTIONS = [
     sum: s => `${s.hostPlays ? 'хост играет' : 'хост только ведёт'} · мест: ${s.slots || 'авто'} · возраст ${s.ageMin}–${s.ageMax}` },
   { id: 'reveal', icon: '🃏', title: 'Раскрытие характеристик', keys: ['forceProfession', 'firstRoundReveals', 'revealsPerRound', 'exiledRevealsAll'],
     sum: s => `в 1-м раунде: ${s.firstRoundReveals}, дальше: ${s.revealsPerRound}${s.forceProfession ? ' · сначала профессия' : ''}` },
-  { id: 'vote', icon: '🗳️', title: 'Голосование', keys: ['voteStartRound', 'voteSecret', 'tieRule'],
-    sum: s => `с ${s.voteStartRound}-го раунда · ${s.voteSecret ? 'тайное' : 'открытое'} · ничья: ${({ revote: 'переголосование', random: 'жребий', none: 'никого' })[s.tieRule] || s.tieRule}` },
+  { id: 'vote', icon: '🗳️', title: 'Голосование', keys: ['voteStartRound', 'voteSecret', 'tieRule', 'skipCatchUp'],
+    sum: s => `с ${s.voteStartRound}-го раунда · ${s.voteSecret ? 'тайное' : 'открытое'} · ничья: ${({ revote: 'переголосование', random: 'жребий', none: 'никого' })[s.tieRule] || s.tieRule}${s.skipCatchUp ? ' · пропуск → изгоняют двоих' : ''}` },
   { id: 'cards', icon: '🎴', title: 'Карточки и карты действий', keys: ['darkHumor', 'actionCards', 'actionsPerPlayer', 'showMarkers'],
     sum: s => `${s.actionCards ? `карт действий: ${s.actionsPerPlayer}` : 'без карт действий'} · ${s.darkHumor ? 'с чёрным юмором' : 'без чёрного юмора'}` },
   { id: 'timers', icon: '⏱️', title: 'Таймеры', keys: ['speechTime', 'discussionTime', 'voteTime', 'resultTime'],
@@ -1463,11 +1466,12 @@ function phaseBanner(g) {
         <button class="btn primary small" data-a="done">Закончить речь</button>`;
     }
   } else if (g.phase === 'discussion') {
-    body = `<div><b>Общее обсуждение.</b> ${L.needsVote(g) ? 'Дальше — голосование.' : 'В этом раунде голосования не будет.'}</div>`;
+    body = `<div><b>Общее обсуждение.</b> ${L.needsVote(g) ? (L.exileCount(g) > 1 ? `Дальше — голосование, изгоняют <b>${L.exileCount(g)}</b> (за пропущенное).` : 'Дальше — голосование.') : 'В этом раунде голосования не будет.'}</div>`;
   } else if (g.phase === 'vote') {
     const voters = L.aliveIds(g);
     const n = voters.filter(p => g.votes[p]).length;
-    body = `<div><b>Голосование</b> ${g.candidates ? '<span class="tag warn">переголосование</span>' : ''} <span class="muted small">проголосовали ${n}/${voters.length}</span></div>`;
+    const toExile = L.exileCount(g);
+    body = `<div><b>Голосование</b> ${g.candidates ? '<span class="tag warn">переголосование</span>' : ''}${toExile > 1 ? ` <span class="tag bad">изгоняют ${toExile}</span>` : ''} <span class="muted small">проголосовали ${n}/${voters.length}</span></div>`;
     if (g.alive[me.id]) {
       const mine = g.votes[me.id];
       body += `<div class="vote-grid">${L.voteTargets(g, me.id).map(p => `<button class="btn small ${mine === p ? 'primary' : ''}" data-a="vote" data-pid="${p}">${esc(nameOf(p))}</button>`).join('')}
@@ -1476,7 +1480,8 @@ function phaseBanner(g) {
   } else if (g.phase === 'result') {
     const r = g.lastResult || {};
     const counts = Object.entries(r.counts || {}).sort((a, b) => b[1] - a[1]);
-    body = `<div>${r.exiled ? `Изгнан(а): <b>${esc(nameOf(r.exiled))}</b>` : '<b>Изгнания нет</b>'}${r.note ? ` <span class="muted small">— ${esc(r.note)}</span>` : ''}</div>
+    const exiledAll = (Array.isArray(r.exiledAll) ? r.exiledAll : Object.values(r.exiledAll || {})).filter(Boolean);
+    body = `<div>${exiledAll.length > 1 ? `Изгнаны: <b>${exiledAll.map(p => esc(nameOf(p))).join(', ')}</b>` : r.exiled ? `Изгнан(а): <b>${esc(nameOf(r.exiled))}</b>` : '<b>Изгнания нет</b>'}${r.note ? ` <span class="muted small">— ${esc(r.note)}</span>` : ''}</div>
       ${counts.length ? `<div class="muted small">${counts.map(([p, c]) => `${esc(nameOf(p))}: ${c}`).join(' · ')}</div>` : ''}`;
     if (!s.voteSecret) {
       const lines = Object.entries(g.votes).filter(([, t]) => t).map(([v, t]) => `${esc(nameOf(v))} → ${t === 'abstain' ? 'воздержался' : esc(nameOf(t))}`);
