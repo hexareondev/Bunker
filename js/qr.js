@@ -1,5 +1,5 @@
 // QR-код в виде SVG (генератор — js/vendor/qrcode.mjs, MIT, Kazuhiko Arase)
-import qrcode from './vendor/qrcode.mjs?v=4.1';
+import qrcode from './vendor/qrcode.mjs?v=4.2';
 
 export function qrSvg(text, { size = 220, label = '' } = {}) {
   const q = qrcode(0, 'M');

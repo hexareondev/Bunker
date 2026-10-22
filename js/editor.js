@@ -1,6 +1,6 @@
-import { makeZip, downloadBlob, readZip } from './zip.js?v=4.1';
-import * as E from './effects.js?v=4.1';
-import { buildAgentGuide } from './agentguide.js?v=4.1';
+import { makeZip, downloadBlob, readZip } from './zip.js?v=4.2';
+import * as E from './effects.js?v=4.2';
+import { buildAgentGuide } from './agentguide.js?v=4.2';
 
 // ---------------- Описание разделов ----------------
 const NEEDS = [['food', '🍖', 'Еда'], ['medicine', '🩺', 'Медицина'], ['repair', '🔧', 'Ремонт'], ['defense', '🛡️', 'Защита'], ['morale', '🙂', 'Мораль'], ['reproduction', '👶', 'Род']];

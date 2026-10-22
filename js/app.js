@@ -5,14 +5,14 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=4.1';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=4.1';
-import * as E from './effects.js?v=4.1';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=4.1';
-import * as S from './sfx.js?v=4.1';
-import * as T from './tts.js?v=4.1';
-import { qrSvg } from './qr.js?v=4.1';
-import * as X from './extras.js?v=4.1';
+import * as L from './logic.js?v=4.2';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=4.2';
+import * as E from './effects.js?v=4.2';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=4.2';
+import * as S from './sfx.js?v=4.2';
+import * as T from './tts.js?v=4.2';
+import { qrSvg } from './qr.js?v=4.2';
+import * as X from './extras.js?v=4.2';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -1545,28 +1545,13 @@ function renderGame() {
   const unread = logEntries.filter(e => (e.t || 0) > (ui.logSeenAt || 0) && e.actor !== me.id).length;
 
   const desk = isDesk();
-  let body = '', nav = '';
-  if (desk) {
-    // широкий экран: карта, игроки и бункер видны одновременно; справа — вкладки бункер / журнал / хост
-    const side = [['bunker', 'Бункер'], ['log', 'Журнал']];
-    if (host) side.push(['admin', 'Хост']);
-    if (!side.some(t => t[0] === ui.sideTab)) ui.sideTab = 'bunker';
-    if (ui.sideTab === 'log') ui.logSeenAt = Math.max(ui.logSeenAt || 0, ...logEntries.map(e => e.t || 0));
-    const unreadD = logEntries.filter(e => (e.t || 0) > (ui.logSeenAt || 0) && e.actor !== me.id).length;
-    const sideBody = ui.sideTab === 'log' ? tabLog() : ui.sideTab === 'admin' ? tabAdmin(g) : tabBunker(g);
-    body = `<div class="desk-grid">
-      <section class="desk-col"><h2 class="desk-h">${playing ? 'Моя карта' : 'Наблюдение'}</h2>${tabMe(g, playing)}</section>
-      <section class="desk-col"><h2 class="desk-h">Игроки</h2>${tabPlayers(g)}</section>
-      <section class="desk-col"><nav class="tabs">${side.map(([k, l]) => `<button class="${ui.sideTab === k ? 'active' : ''}" data-a="sidetab" data-tab="${k}">${l}${k === 'log' && unreadD ? `<span class="badge">${unreadD > 99 ? '99+' : unreadD}</span>` : ''}</button>`).join('')}</nav>${sideBody}</section>
-    </div>`;
-  } else {
-    if (ui.tab === 'me') body = tabMe(g, playing);
-    else if (ui.tab === 'players') body = tabPlayers(g);
-    else if (ui.tab === 'bunker') body = tabBunker(g);
-    else if (ui.tab === 'log') body = tabLog();
-    else if (ui.tab === 'admin') body = tabAdmin(g);
-    nav = `<nav class="tabs">${tabs.map(([k, l]) => `<button class="${ui.tab === k ? 'active' : ''}" data-a="tab" data-tab="${k}">${l}${k === 'log' && unread ? `<span class="badge">${unread > 99 ? '99+' : unread}</span>` : ''}</button>`).join('')}</nav>`;
-  }
+  let body = '';
+  if (ui.tab === 'me') body = tabMe(g, playing);
+  else if (ui.tab === 'players') body = tabPlayers(g);
+  else if (ui.tab === 'bunker') body = tabBunker(g);
+  else if (ui.tab === 'log') body = tabLog();
+  else if (ui.tab === 'admin') body = tabAdmin(g);
+  const nav = `<nav class="tabs">${tabs.map(([k, l]) => `<button class="${ui.tab === k ? 'active' : ''}" data-a="tab" data-tab="${k}">${l}${k === 'log' && unread ? `<span class="badge">${unread > 99 ? '99+' : unread}</span>` : ''}</button>`).join('')}</nav>`;
 
   setHTML(`
   <div class="topbar">
@@ -1576,7 +1561,7 @@ function renderGame() {
   <div class="wrap game ${desk ? 'desk' : ''}">
     ${phaseBanner(g)}
     ${nav}
-    <section>${body}</section>
+    <section class="tab-${ui.tab}">${body}</section>
   </div>
   ${renderModal(g)}`);
 }
@@ -1733,7 +1718,7 @@ function foodNote(g) {
 function tabBunker(g) {
   const c = g.catastrophe || {};
   const f = g.bunker.features;
-  return `
+  return `<div class="bunker-grid">
     <div class="card"><div class="tl">Катастрофа ${sayBtn('cat')}</div><h3>${esc(c.title)}</h3><p>${esc(c.text)}</p><p class="muted">Нужно продержаться: <b>${esc(c.duration)}</b></p></div>
     <div class="card"><div class="tl">Бункер ${sayBtn('bunker')}</div>
       <p>Площадь: <b>${g.bunker.size} м²</b> · Мест: <b>${g.slots}</b>${foodLine(g)}</p>
@@ -1741,7 +1726,7 @@ function tabBunker(g) {
       ${foodNote(g)}
       <ul class="feats">${f.map((x, i) => `<li>${i < g.bunker.shown ? featureItem(x) : '<span class="muted">??? (откроется позже)</span>'}</li>`).join('')}</ul>
     </div>
-    ${eventsHtml(g)}`;
+    ${eventsHtml(g)}</div>`;
 }
 
 function eventsHtml(g) {
@@ -2014,7 +1999,6 @@ $app.addEventListener('click', async e => {
       case 'start': await startGame(); break;
       case 'packClear': if (await ask('Вернуть стандартный набор карточек?', 'Вернуть')) await remove(R('content')); break;
       case 'tab': ui.tab = b.dataset.tab; render(); break;
-      case 'sidetab': ui.sideTab = b.dataset.tab; render(); break;
       case 'prefs': await openPrefs(); break;
       case 'sec': toggleSec(b.dataset.sec); break;
       case 'say': sayAgain(b.dataset.say); break;
