@@ -1,6 +1,6 @@
 // Озвучка текста встроенным синтезатором речи браузера (Web Speech API).
 // Бесплатно, без ключей и серверов; качество голоса зависит от устройства.
-import { prefs, setPref } from './sfx.js?v=4.2';
+import { prefs, setPref } from './sfx.js?v=4.5';
 
 const synth = typeof window !== 'undefined' ? window.speechSynthesis : null;
 export const supported = !!(synth && window.SpeechSynthesisUtterance);

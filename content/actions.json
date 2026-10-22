@@ -655,14 +655,10 @@
   "id": "inheritance",
   "icon": "📜",
   "title": "Наследство",
-  "text": "Если вас изгонят, ваш багаж достаётся случайному игроку.",
+  "text": "Если вас изгонят, ваш багаж достаётся случайному оставшемуся игроку.",
   "effect": {
-   "type": "change",
-   "op": "add",
-   "object": "trait",
-   "key": "baggage",
-   "target": "random_player",
-   "mode": "random"
+   "type": "give",
+   "key": "baggage"
   },
   "when": "auto",
   "dark": true

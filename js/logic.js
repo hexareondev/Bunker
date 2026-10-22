@@ -112,8 +112,25 @@ export function makeTrait(key, content, s, age, exclude = new Set()) {
   return { raw, value: formatTrait(key, raw, age) };
 }
 
+// Псевдорандом: недавно выпавшее не повторяется, пока не пройдёт большая часть колоды.
+// recent — список ключей (названий) от старых к новым
+export const recentKey = x => (typeof x === 'string' ? x : x.title || x.text || '');
+function freshPick(list, recent) {
+  if (!list.length) return null;
+  if (!recent?.length || list.length < 2) return pick(list);
+  const block = new Set(recent.slice(-Math.max(1, Math.floor(list.length * 0.75))));
+  const fresh = list.filter(x => !block.has(recentKey(x)));
+  return pick(fresh.length ? fresh : list);
+}
+// Перемешать, но недавно выпадавшее — в конец (чем свежее повтор, тем дальше)
+function freshShuffle(list, recent) {
+  const age = new Map((recent || []).map((k, i) => [k, i + 1]));
+  return shuffle(list).map((x, i) => ({ x, w: age.get(recentKey(x)) || 0, i })).sort((a, b) => a.w - b.w || a.i - b.i).map(o => o.x);
+}
+
 // ---------- создание партии ----------
-export function newGame(playerIdsIn, content, settings, now) {
+// recent: { cats: [], conds: [], feats: [] } — что выпадало в прошлых партиях
+export function newGame(playerIdsIn, content, settings, now, recent = {}) {
   const s = { ...DEFAULT_SETTINGS, ...settings };
   // порядок круга: начинаем с выбранного игрока (или со случайного)
   let start = playerIdsIn.indexOf(s.firstSpeaker);
@@ -142,17 +159,17 @@ export function newGame(playerIdsIn, content, settings, now) {
     if (s.actionCards && actDeck.length) {
       for (let k = 0; k < (+s.actionsPerPlayer || 0); k++) {
         const a = actDeck[ai++ % actDeck.length];
-        actions.push(JSON.parse(JSON.stringify({ id: a.id, title: a.title, text: a.text, icon: a.icon || '', effect: a.effect, used: false })));
+        actions.push(JSON.parse(JSON.stringify({ id: a.id, title: a.title, text: a.text, icon: a.icon || '', effect: a.effect, ...(a.when && a.when !== 'alive' ? { when: a.when } : {}), used: false })));
       }
     }
     cards[pid] = { age, traits, raw, actions };
   });
 
-  const cat = pick(pool(content, 'catastrophes', s));
-  const featItems = shuffle(pool(content, 'bunkers', s)).slice(0, Math.max(1, +s.bunkerFeatures || 5));
+  const cat = freshPick(pool(content, 'catastrophes', s), recent.cats);
+  const featItems = freshShuffle(pool(content, 'bunkers', s), recent.feats).slice(0, Math.max(1, +s.bunkerFeatures || 5));
   const features = featItems.map(textOf);
   const featureFood = featItems.map(x => (x && x.foodInfinite ? 'inf' : (x && x.foodMonths) || 0));
-  const condItem = (content.conditions || []).length ? pick(pool(content, 'conditions', s)) : null;
+  const condItem = (content.conditions || []).length ? freshPick(pool(content, 'conditions', s), recent.conds) : null;
 
   const game = {
     version: 0, round: 0, phase: 'start', turn: 0, order: [],
@@ -304,6 +321,8 @@ export function endGame(g) {
 export function needsVote(g) {
   return g.round >= (+g.settings.voteStartRound || 1) && aliveIds(g).length > g.slots;
 }
+// Голосование в этом раунде сорвано (картой или событием)
+export const voteCancelled = g => (g.effects?.cancelVote || 0) === g.round;
 
 // Кого игрок может выбрать в голосовании
 export function voteTargets(g, voter) {
@@ -426,7 +445,11 @@ export function advance(g, now) {
     }
     case 'discussion':
       if (aliveIds(g).length <= g.slots) endGame(g);
-      else if (needsVote(g)) {
+      else if (needsVote(g) && voteCancelled(g)) {
+        // голосование сорвано — этап голосования пропускаем, сразу показываем итог
+        g.votes = {}; g.candidates = null;
+        resolveVote(g, now);
+      } else if (needsVote(g)) {
         g.votes = {}; g.candidates = null; g.revoteDone = false;
         setPhase(g, 'vote', now);
         g.event = 'Начинается голосование';

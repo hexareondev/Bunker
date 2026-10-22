@@ -1,5 +1,5 @@
 // Разнообразие: секретные цели, связи между игроками, события раунда, пресеты правил.
-import { pool, shuffle, pick, aliveIds } from './logic.js?v=4.2';
+import { pool, shuffle, pick, aliveIds } from './logic.js?v=4.5';
 
 const fill = (tpl, map) => String(tpl || '').replace(/\{(\w+)\}/g, (_, k) => map[k] ?? '');
 const NEED_NAMES = { food: 'Еда', medicine: 'Медицина', repair: 'Ремонт и техника', defense: 'Защита', morale: 'Мораль', reproduction: 'Продолжение рода' };

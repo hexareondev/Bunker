@@ -5,14 +5,14 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=4.2';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=4.2';
-import * as E from './effects.js?v=4.2';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=4.2';
-import * as S from './sfx.js?v=4.2';
-import * as T from './tts.js?v=4.2';
-import { qrSvg } from './qr.js?v=4.2';
-import * as X from './extras.js?v=4.2';
+import * as L from './logic.js?v=4.5';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=4.5';
+import * as E from './effects.js?v=4.5';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=4.5';
+import * as S from './sfx.js?v=4.5';
+import * as T from './tts.js?v=4.5';
+import { qrSvg } from './qr.js?v=4.5';
+import * as X from './extras.js?v=4.5';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -234,7 +234,8 @@ function actionAnim(e) {
   const f = e.fx || {};
   const g = (cls, glyph, extra = '') => `<div class="fxa ${cls}"><span class="fxa-g">${glyph}</span>${extra}</div>`;
   switch (f.kind) {
-    case 'swap': return `<div class="fxa fxa-swap"><span class="chip">${esc(f.a || '')}</span><span class="mid">${esc(f.label || '')}</span><span class="chip">${esc(f.b || '')}</span></div>`;
+    case 'swap': return `<div class="fxa fxa-swap"><span class="sw a"><span class="chip">${esc(f.a || '')}</span></span><span class="mid">⇄ ${esc(f.label || '')}</span><span class="sw b"><span class="chip">${esc(f.b || '')}</span></span></div>`;
+    case 'give': return `<div class="fxa fxa-swap fxa-give"><span class="end a"><span class="chip">${esc(f.a || '')}</span></span><span class="gift">${esc(f.label || '')}</span><span class="end b"><span class="chip">${esc(f.b || '')}</span></span></div>`;
     case 'shuffle_all': return '<div class="fxa fxa-shuffle"><span class="mini"></span><span class="mini"></span><span class="mini"></span></div>';
     case 'immunity': return g('fxa-shield', '🛡️');
     case 'double_vote': return g('fxa-pop', '✌️');
@@ -252,7 +253,7 @@ function actionAnim(e) {
     default: return g('fxa-pop', e.icon || '🃏');
   }
 }
-const ACT_SOUND = { swap: 'swap', shuffle_all: 'swap', immunity: 'shield', protect: 'shield', double_vote: 'action', cancel_vote: 'stamp', block_reveal: 'stamp', revive: 'heart', bunker_reveal: 'bunker', steal_card: 'swap' };
+const ACT_SOUND = { swap: 'swap', give: 'swap', shuffle_all: 'swap', immunity: 'shield', protect: 'shield', double_vote: 'action', cancel_vote: 'stamp', block_reveal: 'stamp', revive: 'heart', bunker_reveal: 'bunker', steal_card: 'swap' };
 
 // Недавние изменения на карточках — подсвечиваются анимацией
 // Пока идёт окно раскрытия, карточка лежит «рубашкой вверх»; после окна переворачивается один раз.
@@ -350,6 +351,7 @@ function notifyEntry(e) {
   else if (e.type === 'action') {
     const f = e.fx || {};
     const after = () => {
+      if (f.kind === 'give' && f.key) markFresh(`${f.pb}:${f.key}`, 'fresh-swap');
       if (f.kind === 'swap' && f.key) { markFresh(`${f.pa}:${f.key}`, 'fresh-swap'); markFresh(`${f.pb}:${f.key}`, 'fresh-swap'); }
       if (f.kind === 'shuffle_all' && f.key) (state?.game?.players || []).forEach(p => markFresh(`${p}:${f.key}`, 'fresh-swap'));
     };
@@ -578,11 +580,12 @@ async function startGame() {
   const ids = validPlayers().filter(([id]) => s.hostPlays || id !== state.meta.hostId).map(([id]) => id);
   if (ids.length < 2) return toast('Нужно минимум 2 игрока', 'warn');
   if (ids.length < 4 && !(await ask(`Игроков всего ${ids.length}. Обычно играют от 6. Начать всё равно?`, 'Начать'))) return;
-  const { cards, game } = L.newGame(ids, content, s, now());
+  const recent = loadRecent();
+  const { cards, game } = L.newGame(ids, content, s, now(), recent);
   if (s.goals) { const goals = X.assignGoals(game.players, content, s); for (const p of Object.keys(goals)) cards[p].goal = goals[p]; }
   const rels = X.assignRelations(game.players, content, s);
   if (rels.length) game.relations = rels;
-  const upd = { cards, game, 'meta/status': 'playing', log: null };
+  const upd = { cards, game, 'meta/status': 'playing', log: null, 'meta/recent': saveRecent(recent, game) };
   validPlayers().forEach(([id]) => { upd[`players/${id}/spectator`] = null; });
   await update(R(''), upd);
   addLog(game.event, {
@@ -590,6 +593,35 @@ async function startGame() {
     size: game.bunker.size, slots: game.slots, feature: game.bunker.features[0] || '',
     condition: game.bunker.condition?.text || '', food: L.foodInfo(game).infinite ? -1 : L.foodInfo(game).months, need: game.catastrophe.months || 0,
   });
+}
+
+// История выпавшего (катастрофы, состояния, особенности бункера) — чтобы партия за партией не повторялись.
+// Хранится и в лобби (общая для любого хоста), и на устройстве хоста (переживает новые лобби).
+const RECENT_KEY = 'bunker.recent';
+const RECENT_MAX = { cats: 30, conds: 30, feats: 80 };
+function loadRecent() {
+  let local = {};
+  try { local = JSON.parse(localStorage.getItem(RECENT_KEY) || '{}') || {}; } catch {}
+  const room = state.meta?.recent || {};
+  const out = {};
+  for (const k of Object.keys(RECENT_MAX)) {
+    const a = Array.isArray(local[k]) ? local[k] : [], b = Array.isArray(room[k]) ? room[k] : Object.values(room[k] || {});
+    // объединяем: что встречается в любой истории; свежие — в конце
+    const merged = [];
+    for (const x of [...a, ...b]) { const i = merged.indexOf(x); if (i >= 0) merged.splice(i, 1); merged.push(x); }
+    out[k] = merged.slice(-RECENT_MAX[k]);
+  }
+  return out;
+}
+function saveRecent(recent, game) {
+  const push = (arr, items, max) => { const a = arr.filter(x => !items.includes(x)); a.push(...items.filter(Boolean)); return a.slice(-max); };
+  const next = {
+    cats: push(recent.cats || [], [game.catastrophe.title], RECENT_MAX.cats),
+    conds: push(recent.conds || [], game.bunker.condition ? [game.bunker.condition.text] : [], RECENT_MAX.conds),
+    feats: push(recent.feats || [], game.bunker.features, RECENT_MAX.feats),
+  };
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch {}
+  return next;
 }
 
 async function backToLobby() {
@@ -907,6 +939,19 @@ async function useAction(i, ctx = {}) {
       alive.forEach((p, j) => put(p, key, sh[j]));
       msg += `: перемешана характеристика «${label}» у всех`; break;
     }
+    case 'give': {
+      const mine = traitPartsOf(cards[owner], key);
+      if (!mine.raw.length) return fail(`Вам нечего отдать в «${label}»`);
+      const theirs = traitPartsOf(cards[target], key);
+      const raw = [...theirs.raw, ...mine.raw];
+      const val = [...theirs.val, ...mine.raw.map(r => L.formatTrait(key, r, cards[target].age))];
+      upd[`cards/${target}/raw/${key}`] = raw.join(SEP);
+      upd[`cards/${target}/traits/${key}`] = val.join(SEP);
+      upd[`cards/${owner}/raw/${key}`] = NONE;
+      upd[`cards/${owner}/traits/${key}`] = NONE;
+      const open = !!(g.revealed[owner] || {})[key];
+      msg += `: «${label}»${open ? ` (${cards[owner].traits[key]})` : ''} переходит к игроку @${target}@`; break;
+    }
     case 'reveal_target': {
       const hid = L.hiddenKeys(g, target);
       let k = e.key && e.key !== 'random' ? e.key : null;
@@ -967,11 +1012,14 @@ async function useAction(i, ctx = {}) {
       return fail('Неизвестная карта действия', 'warn');
   }
   upd[`cards/${owner}/actions/${i}/used`] = true;
+  const ver = g.version || 0;
   await update(R(''), upd);
+  // голосование сорвано прямо во время голосования — сразу завершаем этап (после показа карты)
+  if (e.type === 'cancel_vote') setTimeout(() => { if (state?.game?.phase === 'vote' && (state.game.version || 0) === ver) doAdvance(ver); }, 2500);
   let sub = fillNames(msg.slice(prefix.length)).replace(/^\s*(:|—|и)\s*/, '');
   sub = sub ? sub[0].toUpperCase() + sub.slice(1) : '';
   const fx = { kind: e.type === 'change' ? e.op : e.type };
-  if (e.type === 'swap') Object.assign(fx, { a: ownerName, b: nameOf(target), pa: owner, pb: target, key, label });
+  if (e.type === 'swap' || e.type === 'give') Object.assign(fx, { a: ownerName, b: nameOf(target), pa: owner, pb: target, key, label });
   if (e.type === 'shuffle_all') Object.assign(fx, { key });
   if (target) fx.target = target;
   if (secret && owner === me.id) setTimeout(() => dialog({ title: `🤫 ${secret.title}`, html: `<div class="secret-val">${esc(secret.text)}</div>${secret.desc ? `<p class="muted small">${esc(secret.desc)}</p>` : ''}<p class="muted small">Это видите только вы.</p>`, ok: 'Понятно', cancel: '' }), 3800);
@@ -1310,7 +1358,48 @@ function setHTML(html) {
     else if (el && el.tagName === 'INPUT' && el.type !== 'number' && el.type !== 'checkbox') el.value = v;
   }
   if (active) document.getElementById(active)?.focus();
+  if (ui.board) fitBoard();
 }
+
+// Табло: всё содержимое должно помещаться в экран — на телевизоре листать нечем.
+// Крупный масштаб на больших экранах, но если не влезает — уменьшаем, пока не влезет.
+const BOARD_MIN_ZOOM = 0.5;
+function boardBaseZoom() {
+  const w = innerWidth;
+  return w >= 2400 ? 1.9 : w >= 1700 ? 1.45 : w >= 1300 ? 1.2 : 1;
+}
+function fitBoard() {
+  if (!ui.board) return;
+  const root = document.documentElement;
+  let z = boardBaseZoom();
+  $app.style.zoom = z;
+  for (let i = 0; i < 8; i++) {
+    const h = root.scrollHeight, vh = innerHeight;
+    if (h <= vh + 1 || z <= BOARD_MIN_ZOOM) break;
+    // после уменьшения колонок становится больше — поэтому несколько проходов
+    z = Math.max(BOARD_MIN_ZOOM, z * Math.max(0.6, (vh / h) * 0.99));
+    $app.style.zoom = z;
+  }
+  root.style.setProperty('--bz', z);
+  boardAutoScroll(root.scrollHeight > innerHeight + 2);
+}
+// Если даже при минимальном масштабе не влезло (например, длинный финал) — медленно прокручиваем сами
+let bScroll = null;
+function boardAutoScroll(on) {
+  if (!on) { if (bScroll) { clearInterval(bScroll.t); bScroll = null; scrollTo(0, 0); } return; }
+  if (bScroll) return;
+  bScroll = { wait: 160, dir: 1 };
+  bScroll.t = setInterval(() => {
+    if (bScroll.wait > 0) { bScroll.wait--; return; }
+    const max = document.documentElement.scrollHeight - innerHeight;
+    if (bScroll.dir > 0) {
+      scrollBy(0, 1);
+      if (scrollY >= max - 1) { bScroll.dir = -1; bScroll.wait = 160; }
+    } else { scrollTo({ top: 0, behavior: 'smooth' }); bScroll.dir = 1; bScroll.wait = 200; }
+  }, 30);
+}
+addEventListener('resize', () => { if (ui.board) fitBoard(); });
+document.fonts?.ready?.then(() => { if (ui.board) fitBoard(); });
 // Широкий экран (ПК): раскладка в несколько колонок
 const DESK_MQ = window.matchMedia('(min-width: 1100px)');
 const isDesk = () => DESK_MQ.matches && !ui.board;
@@ -1475,7 +1564,7 @@ function phaseBanner(g) {
         <button class="btn primary small" data-a="done">Закончить речь</button>`;
     }
   } else if (g.phase === 'discussion') {
-    body = `<div><b>Общее обсуждение.</b> ${L.needsVote(g) ? (L.exileCount(g) > 1 ? `Дальше — голосование, изгоняют <b>${L.exileCount(g)}</b> (за пропущенное).` : 'Дальше — голосование.') : 'В этом раунде голосования не будет.'}</div>`;
+    body = `<div><b>Общее обсуждение.</b> ${L.needsVote(g) && L.voteCancelled(g) ? '<b>Голосование сорвано</b> — в этом раунде его не будет.' : L.needsVote(g) ? (L.exileCount(g) > 1 ? `Дальше — голосование, изгоняют <b>${L.exileCount(g)}</b> (за пропущенное).` : 'Дальше — голосование.') : 'В этом раунде голосования не будет.'}</div>`;
   } else if (g.phase === 'vote') {
     const voters = L.aliveIds(g);
     const n = voters.filter(p => g.votes[p]).length;
@@ -1616,11 +1705,11 @@ function actionBlockReason(a, g) {
       return '';
     case 'double_vote':
       if (g.effects.double[me.id] === g.round) return 'Уже действует в этом раунде';
-      if (g.phase === 'result' || !L.needsVote(g)) return 'В этом раунде нет голосования';
+      if (g.phase === 'result' || !L.needsVote(g) || L.voteCancelled(g)) return 'В этом раунде нет голосования';
       return '';
     case 'immunity':
       if (g.effects.immune[me.id] === g.round) return 'Уже действует в этом раунде';
-      if (g.phase === 'result' || !L.needsVote(g)) return 'В этом раунде нет голосования';
+      if (g.phase === 'result' || !L.needsVote(g) || L.voteCancelled(g)) return 'В этом раунде нет голосования';
       return '';
     case 'bunker_reveal':
       return g.bunker.shown >= g.bunker.features.length ? 'Все особенности бункера открыты' : '';
@@ -1632,7 +1721,7 @@ function actionBlockReason(a, g) {
       if (!g.settings.goals) return 'В этой игре нет секретных целей';
       return targetsFor(e).length ? '' : 'Не у кого узнать цель';
     case 'protect':
-      if (g.phase === 'result' || !L.needsVote(g)) return 'В этом раунде нет голосования';
+      if (g.phase === 'result' || !L.needsVote(g) || L.voteCancelled(g)) return 'В этом раунде нет голосования';
       return '';
     case 'block_reveal':
       return targetsFor(e).length ? '' : 'Некого';
@@ -1962,12 +2051,12 @@ function renderEnd() {
     <div class="card story">${story.length ? `<div class="tl">История ${sayBtn('final')}</div>` : ''}${story.length ? story.map(x => `<p>${esc(x)}</p>`).join('') : '<p class="muted">Подводим итоги…</p>'}</div>
     ${goalsHtml}${twistsHtml}${needsHtml}${probsHtml}${fatesHtml}${relHtml}${exiledHtml}
     <h2>Выжившие · ${surv.length}</h2><div class="players">${block(surv)}</div>
-    <h2>Остались снаружи · ${out.length}</h2><div class="players">${block(out)}</div>
-    <div class="card"><div class="tl">Бункер</div><ul class="feats">${g.bunker.features.map(f => `<li>${featureItem(f)}</li>`).join('')}</ul></div>
+    ${out.length || !ui.board ? `<h2>Остались снаружи · ${out.length}</h2><div class="players">${block(out)}</div>` : ''}
+    ${ui.board ? '' : `<div class="card"><div class="tl">Бункер</div><ul class="feats">${g.bunker.features.map(f => `<li>${featureItem(f)}</li>`).join('')}</ul></div>
     <div class="actions-row">
       ${isHost() ? '<button class="btn primary" data-a="toLobbyNoConfirm">Новая игра (в лобби)</button>' : '<p class="muted center">Хост может начать новую игру.</p>'}
       <button class="btn ghost" data-a="leave">Выйти</button>
-    </div>
+    </div>`}
   </div>`);
 }
 

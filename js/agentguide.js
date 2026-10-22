@@ -1,7 +1,7 @@
 // Инструкция для ИИ-агента: как собрать набор карточек (пак) для БункИИр.
 // Собирается из актуальных констант кода и текущего контента редактора,
 // поэтому списки проблем, типов эффектов и уже существующих значений всегда свежие.
-import * as E from './effects.js?v=4.2';
+import * as E from './effects.js?v=4.5';
 
 export const GUIDE_FILES = [
   ['professions', 'Профессии', 'trait'], ['biology', 'Биология', 'trait'], ['health', 'Здоровье', 'trait'],
@@ -132,7 +132,7 @@ ${code({ id: 'fleas', icon: '🦟', name: 'Блохи', need: 'medicine', power:
 ${table(['Значение', 'Смысл'], E.WHEN_OPTS.map(([k, l]) => [`\`${k}\``, l]))}
 
 **\`effect.type\`**:
-${table(['type', 'Что делает', 'Доп. поля'], E.KINDS.map(([k, l]) => [`\`${k}\``, l, k === 'change' ? 'см. ниже' : ['swap', 'shuffle_all', 'reveal_target', 'peek'].includes(k) ? '`key`' : '—']))}
+${table(['type', 'Что делает', 'Доп. поля'], E.KINDS.map(([k, l]) => [`\`${k}\``, l, k === 'change' ? 'см. ниже' : ['swap', 'give', 'shuffle_all', 'reveal_target', 'peek'].includes(k) ? '`key`' : '—']))}
 
 \`key\` — характеристика: ${Object.entries(E.TRAIT_LABELS).map(([k, l]) => `\`${k}\` (${l.toLowerCase()})`).join(', ')} или \`random\`.
 

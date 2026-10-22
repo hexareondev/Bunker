@@ -12,7 +12,7 @@
 //   amount: 1 }                                   — для slots и food
 //
 // Особые эффекты: swap, shuffle_all, reveal_target, immunity, double_vote, cancel_vote, bunker_reveal, revive,
-// peek (тайно подсмотреть), block_reveal (запрет раскрываться), steal_card, protect, peek_goal.
+// give (отдать свою характеристику), peek (тайно подсмотреть), block_reveal (запрет раскрываться), steal_card, protect, peek_goal.
 // Только для событий раунда: none (без последствий), extra_reveal (всем +N раскрытий в раунде).
 
 export const TRAIT_LABELS = {
@@ -28,6 +28,7 @@ const TRAIT_ACC = {
 export const KINDS = [
   ['change', 'Изменение: добавить / убрать / заменить'],
   ['swap', 'Обмен характеристикой с игроком'],
+  ['give', 'Отдать свою характеристику игроку'],
   ['shuffle_all', 'Перемешать характеристику у всех'],
   ['reveal_target', 'Раскрыть характеристику игрока'],
   ['immunity', 'Иммунитет от голосов в этом раунде'],
@@ -127,8 +128,8 @@ export function fixDefaults(e) {
 export const usesPool = e => e.type === 'change' && (e.mode === 'pool_random' || e.mode === 'pool_choice');
 export const hasModes = e => e.type === 'change' && (e.object === 'trait' || e.object === 'feature');
 export const isNumeric = e => (e.type === 'change' && (e.object === 'slots' || e.object === 'food')) || e.type === 'extra_reveal';
-export const needsKey = e => (e.type === 'change' && e.object === 'trait') || ['swap', 'shuffle_all', 'reveal_target', 'peek'].includes(e.type);
-export const needsPlayer = e => ['swap', 'reveal_target', 'revive', 'peek', 'block_reveal', 'steal_card', 'protect', 'peek_goal'].includes(e.type) || (e.type === 'change' && e.object === 'trait' && e.target === 'player');
+export const needsKey = e => (e.type === 'change' && e.object === 'trait') || ['swap', 'give', 'shuffle_all', 'reveal_target', 'peek'].includes(e.type);
+export const needsPlayer = e => ['swap', 'give', 'reveal_target', 'revive', 'peek', 'block_reveal', 'steal_card', 'protect', 'peek_goal'].includes(e.type) || (e.type === 'change' && e.object === 'trait' && e.target === 'player');
 export const needsChoice = e => e.type === 'change' && hasModes(e) && e.mode === 'pool_choice';
 
 function listText(items, max = 4) {
@@ -143,6 +144,7 @@ export function describeEffect(raw) {
   const months = n => `${n} мес.`;
   switch (e.type) {
     case 'swap': return `Обменяться характеристикой «${keyText(e.key)}» с выбранным игроком.`;
+    case 'give': return `Отдать свою характеристику «${keyText(e.key)}» выбранному игроку: она добавляется к его собственной, а у вас не остаётся ничего.`;
     case 'shuffle_all': return `Перемешать характеристику «${keyText(e.key)}» у всех оставшихся игроков.`;
     case 'reveal_target': return `Раскрыть ${e.key && e.key !== 'random' ? `«${TRAIT_LABELS[e.key]}»` : 'случайную скрытую характеристику'} выбранного игрока.`;
     case 'immunity': return 'В этом раунде голоса против вас не засчитываются.';
