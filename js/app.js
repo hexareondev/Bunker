@@ -5,14 +5,14 @@ import {
   getDatabase, ref, get, set, update, remove, push, onValue, onDisconnect,
   runTransaction, increment, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
-import * as L from './logic.js?v=4.0';
-import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=4.0';
-import * as E from './effects.js?v=4.0';
-import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=4.0';
-import * as S from './sfx.js?v=4.0';
-import * as T from './tts.js?v=4.0';
-import { qrSvg } from './qr.js?v=4.0';
-import * as X from './extras.js?v=4.0';
+import * as L from './logic.js?v=4.1';
+import { loadContent, mergeContent, parseUpload, toArray, FILES as CONTENT_FILES, FILE_LABELS } from './content.js?v=4.1';
+import * as E from './effects.js?v=4.1';
+import { makeFinal, NEEDS, needMeta, itemNeeds } from './final.js?v=4.1';
+import * as S from './sfx.js?v=4.1';
+import * as T from './tts.js?v=4.1';
+import { qrSvg } from './qr.js?v=4.1';
+import * as X from './extras.js?v=4.1';
 
 // ---------------- Firebase ----------------
 const fbApp = initializeApp(firebaseConfig);
@@ -1311,6 +1311,11 @@ function setHTML(html) {
   }
   if (active) document.getElementById(active)?.focus();
 }
+// Широкий экран (ПК): раскладка в несколько колонок
+const DESK_MQ = window.matchMedia('(min-width: 1100px)');
+const isDesk = () => DESK_MQ.matches && !ui.board;
+DESK_MQ.addEventListener?.('change', () => render());
+
 function render() {
   if (drag) { drag.pending = true; return; }
   try {
@@ -1416,7 +1421,8 @@ function renderLobby() {
   const autoSlots = L.defaultSlots(playing);
   const host = isHost();
   setHTML(`
-  <div class="wrap">
+  <div class="wrap lobby">
+    <div class="lobby-main">
     <div class="lobby-head">
       <div><div class="muted small">Код лобби</div><div class="code">${esc(roomCode)}</div></div>
       <div class="lobby-tools"><button class="btn small" data-a="copy">Ссылка</button><button class="btn small" data-a="qr" title="QR-код для входа">QR</button><button class="btn small" data-a="boardInfo" title="Табло на общий экран">📺</button><button class="gear" data-a="prefs" title="Настройки">⚙️</button></div>
@@ -1428,12 +1434,15 @@ function renderLobby() {
     </ul>
     <h2>Набор карточек</h2>
     ${packHtml(host)}
+    </div>
+    <div class="lobby-side">
     <h2>Настройки</h2>
     <p class="muted small">Играют: ${playing}. Мест в бункере: ${s.slots > 0 ? Math.min(s.slots, Math.max(1, playing - 1)) : autoSlots}${s.slots > 0 ? '' : ' (авто)'}</p>
     ${settingsHtml(s, host)}
     <div class="actions-row">
       ${host ? '<button class="btn primary" data-a="start">Начать игру</button>' : '<p class="muted center">Ждём, пока хост начнёт игру…</p>'}
       <button class="btn ghost" data-a="leave">Выйти из лобби</button>
+    </div>
     </div>
   </div>`);
 }
@@ -1535,21 +1544,38 @@ function renderGame() {
   if (ui.tab === 'log') ui.logSeenAt = Math.max(ui.logSeenAt || 0, ...logEntries.map(e => e.t || 0));
   const unread = logEntries.filter(e => (e.t || 0) > (ui.logSeenAt || 0) && e.actor !== me.id).length;
 
-  let body = '';
-  if (ui.tab === 'me') body = tabMe(g, playing);
-  else if (ui.tab === 'players') body = tabPlayers(g);
-  else if (ui.tab === 'bunker') body = tabBunker(g);
-  else if (ui.tab === 'log') body = tabLog();
-  else if (ui.tab === 'admin') body = tabAdmin(g);
+  const desk = isDesk();
+  let body = '', nav = '';
+  if (desk) {
+    // широкий экран: карта, игроки и бункер видны одновременно; справа — вкладки бункер / журнал / хост
+    const side = [['bunker', 'Бункер'], ['log', 'Журнал']];
+    if (host) side.push(['admin', 'Хост']);
+    if (!side.some(t => t[0] === ui.sideTab)) ui.sideTab = 'bunker';
+    if (ui.sideTab === 'log') ui.logSeenAt = Math.max(ui.logSeenAt || 0, ...logEntries.map(e => e.t || 0));
+    const unreadD = logEntries.filter(e => (e.t || 0) > (ui.logSeenAt || 0) && e.actor !== me.id).length;
+    const sideBody = ui.sideTab === 'log' ? tabLog() : ui.sideTab === 'admin' ? tabAdmin(g) : tabBunker(g);
+    body = `<div class="desk-grid">
+      <section class="desk-col"><h2 class="desk-h">${playing ? 'Моя карта' : 'Наблюдение'}</h2>${tabMe(g, playing)}</section>
+      <section class="desk-col"><h2 class="desk-h">Игроки</h2>${tabPlayers(g)}</section>
+      <section class="desk-col"><nav class="tabs">${side.map(([k, l]) => `<button class="${ui.sideTab === k ? 'active' : ''}" data-a="sidetab" data-tab="${k}">${l}${k === 'log' && unreadD ? `<span class="badge">${unreadD > 99 ? '99+' : unreadD}</span>` : ''}</button>`).join('')}</nav>${sideBody}</section>
+    </div>`;
+  } else {
+    if (ui.tab === 'me') body = tabMe(g, playing);
+    else if (ui.tab === 'players') body = tabPlayers(g);
+    else if (ui.tab === 'bunker') body = tabBunker(g);
+    else if (ui.tab === 'log') body = tabLog();
+    else if (ui.tab === 'admin') body = tabAdmin(g);
+    nav = `<nav class="tabs">${tabs.map(([k, l]) => `<button class="${ui.tab === k ? 'active' : ''}" data-a="tab" data-tab="${k}">${l}${k === 'log' && unread ? `<span class="badge">${unread > 99 ? '99+' : unread}</span>` : ''}</button>`).join('')}</nav>`;
+  }
 
   setHTML(`
   <div class="topbar">
     <div><b>Раунд ${g.round}</b> · ${L.PHASE_NAMES[g.phase] || g.phase}<div class="muted small">Мест: ${g.slots} · в игре: ${L.aliveIds(g).length}${L.foodInfo(g).has ? ` · 🍖 ${L.monthsText(L.foodInfo(g).months, true)}` : ''} · код ${esc(roomCode)}</div></div>
     <div class="topbar-right"><div id="timer" class="timer"></div><button class="gear" data-a="prefs" title="Настройки">⚙️</button></div>
   </div>
-  <div class="wrap game">
+  <div class="wrap game ${desk ? 'desk' : ''}">
     ${phaseBanner(g)}
-    <nav class="tabs">${tabs.map(([k, l]) => `<button class="${ui.tab === k ? 'active' : ''}" data-a="tab" data-tab="${k}">${l}${k === 'log' && unread ? `<span class="badge">${unread > 99 ? '99+' : unread}</span>` : ''}</button>`).join('')}</nav>
+    ${nav}
     <section>${body}</section>
   </div>
   ${renderModal(g)}`);
@@ -1988,6 +2014,7 @@ $app.addEventListener('click', async e => {
       case 'start': await startGame(); break;
       case 'packClear': if (await ask('Вернуть стандартный набор карточек?', 'Вернуть')) await remove(R('content')); break;
       case 'tab': ui.tab = b.dataset.tab; render(); break;
+      case 'sidetab': ui.sideTab = b.dataset.tab; render(); break;
       case 'prefs': await openPrefs(); break;
       case 'sec': toggleSec(b.dataset.sec); break;
       case 'say': sayAgain(b.dataset.say); break;

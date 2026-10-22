@@ -600,3 +600,21 @@ html.board-mode .wrap.end { max-width: 1100px; }
 .goals li.g-ok { border-color: color-mix(in srgb, var(--ok) 50%, var(--line)); }
 .goals li.g-fail { opacity: .85; }
 .mk.dice { border-color: color-mix(in srgb, var(--act) 50%, var(--line)); }
+
+/* ---------- Широкий экран (ПК) ---------- */
+@media (min-width: 1100px) {
+  .wrap.lobby, .wrap.game, .wrap.end { max-width: 1600px; padding-left: 24px; padding-right: 24px; }
+  .wrap.lobby { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(420px, 1.2fr); gap: 0 32px; align-items: start; }
+  .lobby-side h2:first-child, .lobby-main > :first-child { margin-top: 0; }
+  .lobby-side { position: sticky; top: 12px; }
+  .topbar { padding-left: 24px; padding-right: 24px; }
+  .desk-grid { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(380px, 1.25fr) minmax(320px, 1fr); gap: 20px; align-items: start; margin-top: 14px; }
+  .desk-col { min-width: 0; }
+  .desk-h { margin: 0 0 10px; font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; }
+  .desk-col .tabs { margin: 0 0 12px; padding: 0; }
+  .desk-col .players { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+  .wrap.game.desk .banner { font-size: 1.05rem; }
+  .wrap.end .players { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+  .wrap.end .fates { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 8px; }
+  .wrap.end .probs { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 8px; }
+}

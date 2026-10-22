@@ -118,3 +118,9 @@
 .ed-variant-w select { width: auto; padding: 6px 8px; }
 .ed-ai { margin: 18px 0 8px; padding: 12px 14px; border: 1px dashed color-mix(in srgb, var(--act) 55%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--act) 5%, var(--surface)); display: flex; flex-direction: column; gap: 10px; }
 .ed-ai .ed-row { display: flex; flex-wrap: wrap; gap: 8px; }
+/* широкий экран */
+@media (min-width: 1100px) {
+  .ed-wrap { max-width: 1180px; }
+  .ed-needs { grid-template-columns: repeat(6, 1fr); }
+  .ed-pick .pick-list, .pick-list { columns: 2; }
+}
